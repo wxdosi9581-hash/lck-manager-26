@@ -1,0 +1,2033 @@
+```html
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LCK MANAGER 26 - LoL 구단 감독 시뮬레이션</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans KR"', 'Inter', 'sans-serif'],
+            mono: ['Inter', 'monospace']
+          },
+          colors: {
+            fm: {
+              bg: '#090d16',
+              panel: '#101726',
+              card: '#172136',
+              border: '#26344f',
+              accent: '#10b981',
+              gold: '#f59e0b',
+              blue: '#3b82f6',
+              red: '#ef4444'
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      background-color: #090d16;
+      color: #e2e8f0;
+      font-family: 'Noto Sans KR', 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #090d16; }
+    ::-webkit-scrollbar-thumb { background: #26344f; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3b4f75; }
+
+    .stat-bar-fill { transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1); }
+    .fade-in { animation: fadeIn 0.22s ease-out; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .pulse-ring {
+      animation: pulseRing 2.2s infinite;
+    }
+    @keyframes pulseRing {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.35); }
+      50% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-emerald-500 selection:text-white">
+
+  <!-- =========================================================
+       1. 시작 / 구단 선택 및 저장 불러오기 화면
+  ========================================================== -->
+  <div id="setup-screen" class="fixed inset-0 z-50 bg-fm-bg overflow-y-auto flex items-center justify-center p-3 sm:p-6">
+    <div class="max-w-6xl w-full bg-fm-panel border border-fm-border rounded-2xl shadow-2xl overflow-hidden my-auto">
+      <div class="bg-gradient-to-r from-slate-950 via-indigo-950/90 to-slate-950 p-6 sm:p-8 border-b border-fm-border">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                2026 LCK PRO MANAGER
+              </span>
+              <span id="setup-patch-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                PATCH 16.22
+              </span>
+            </div>
+            <h1 class="text-2xl sm:text-4xl font-black tracking-tight text-white">
+              LCK MANAGER <span class="text-emerald-400">26</span>
+            </h1>
+            <p class="text-slate-400 text-xs sm:text-sm mt-1">
+              풋볼매니저(FM) 스타일 LoL e스포츠 구단 감독 시뮬레이션 — 로스터 운영, 메타 밴픽, 실시간 타임라인 지시
+            </p>
+          </div>
+
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div class="w-full sm:w-56">
+              <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">신임 감독 이름</label>
+              <input id="manager-name-input" type="text" value="한감독" maxlength="16"
+                class="w-full px-3.5 py-2.5 bg-fm-bg border border-fm-border rounded-xl text-white text-sm font-bold focus:outline-none focus:border-emerald-500" />
+            </div>
+            <button id="load-save-btn" onclick="loadFromStorage()"
+              class="hidden sm:mt-5 px-4 py-2.5 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-300 text-xs font-extrabold transition">
+              💾 저장된 커리어 불러오기
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-5 sm:p-8">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-xs sm:text-sm font-extrabold text-slate-300 uppercase tracking-wider">
+            10개 프랜차이즈 구단 중 부임할 팀 선택
+          </h2>
+          <button id="mobile-load-save-btn" onclick="loadFromStorage()"
+            class="hidden sm:hidden px-3 py-1.5 rounded-lg bg-amber-600/20 border border-amber-500/40 text-amber-300 text-xs font-bold">
+            💾 불러오기
+          </button>
+        </div>
+
+        <div id="team-select-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 max-h-[54vh] overflow-y-auto pr-1"></div>
+
+        <div class="mt-6 pt-5 border-t border-fm-border flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div id="selected-team-preview" class="text-xs sm:text-sm text-slate-300"></div>
+          <button onclick="startNewCareer()"
+            class="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm shadow-lg shadow-emerald-950/60 transition transform active:scale-95">
+            감독 부임 및 시즌 시작 →
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       2. 메인 게임 대시보드 레이아웃
+  ========================================================== -->
+  <div id="main-app" class="hidden flex-1 flex flex-col lg:flex-row min-h-screen">
+    <!-- 좌측 사이드바 -->
+    <aside class="w-full lg:w-64 bg-fm-panel border-b lg:border-b-0 lg:border-r border-fm-border flex flex-col shrink-0">
+      <div class="p-4 border-b border-fm-border flex items-center justify-between lg:block">
+        <div class="flex items-center gap-3">
+          <div id="nav-team-badge" class="w-11 h-11 rounded-xl flex items-center justify-center font-black text-sm text-white shadow">
+            T2
+          </div>
+          <div class="min-w-0">
+            <div id="nav-team-name" class="font-extrabold text-white text-sm sm:text-base truncate">T2</div>
+            <div id="nav-manager-name" class="text-xs text-slate-400 truncate">감독: 한감독</div>
+          </div>
+        </div>
+        <button onclick="toggleMobileMenu()" class="lg:hidden px-3 py-2 rounded-xl bg-fm-card text-slate-200 border border-fm-border text-xs font-bold">
+          ☰ 메뉴
+        </button>
+      </div>
+
+      <nav id="sidebar-nav" class="hidden lg:flex flex-col gap-1 p-3 flex-1">
+        <button onclick="switchTab('dashboard')" data-tab="dashboard" class="nav-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-left transition">
+          <span>📊</span> 구단 홈 / 대시보드
+        </button>
+        <button onclick="switchTab('squad')" data-tab="squad" class="nav-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-left transition">
+          <span>👥</span> 스쿼드 & 전술 설정
+        </button>
+        <button onclick="switchTab('training')" data-tab="training" class="nav-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-left transition">
+          <span>🏋️</span> 주간 훈련 & 구단 시설
+        </button>
+        <button onclick="switchTab('transfers')" data-tab="transfers" class="nav-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-left transition">
+          <span>💼</span> 이적시장 & 코치/재정
+        </button>
+        <button onclick="switchTab('league')" data-tab="league" class="nav-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-left transition">
+          <span>🏆</span> 리그 순위 & 전체 일정
+        </button>
+        <button onclick="switchTab('meta')" data-tab="meta" class="nav-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-left transition">
+          <span>📜</span> 패치 메타 & 상성표
+        </button>
+
+        <div class="pt-3 mt-2 border-t border-fm-border space-y-2">
+          <div class="grid grid-cols-2 gap-1.5">
+            <button onclick="saveToStorage(true)" class="py-2 px-2 rounded-xl bg-fm-card hover:bg-slate-800 border border-fm-border text-[11px] font-bold text-slate-300 transition">
+              💾 저장하기
+            </button>
+            <button onclick="returnToSetup()" class="py-2 px-2 rounded-xl bg-fm-card hover:bg-slate-800 border border-fm-border text-[11px] font-bold text-slate-400 transition">
+              🔄 새 커리어
+            </button>
+          </div>
+          <button id="sidebar-match-btn" onclick="openMatchday()"
+            class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm shadow-lg flex items-center justify-center gap-2 transition transform active:scale-95 pulse-ring border border-emerald-400/50">
+            <span>⚔️</span> <span id="sidebar-action-text">다음 경기 진행</span>
+          </button>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- 우측 메인 패널 -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <header class="bg-fm-panel/95 backdrop-blur border-b border-fm-border px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2.5 sticky top-0 z-20">
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div class="px-3 py-1.5 rounded-xl bg-fm-card border border-fm-border flex items-center gap-2">
+            <span class="text-[11px] text-slate-400">일정</span>
+            <span id="hud-week" class="text-xs sm:text-sm font-black text-white">Week 1 / 18</span>
+          </div>
+          <div onclick="switchTab('meta')" class="cursor-pointer px-3 py-1.5 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/50 border border-indigo-500/30 flex items-center gap-2 transition">
+            <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
+            <span id="hud-patch" class="text-xs font-bold text-indigo-300">Patch 16.22</span>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div class="px-3 py-1.5 rounded-xl bg-fm-card border border-fm-border text-xs">
+            <span class="text-slate-400">자금:</span>
+            <span id="hud-budget" class="font-mono font-extrabold text-amber-400 ml-1">55.0억</span>
+          </div>
+          <div class="px-3 py-1.5 rounded-xl bg-fm-card border border-fm-border text-xs">
+            <span class="text-slate-400">팬심:</span>
+            <span id="hud-fans" class="font-mono font-extrabold text-emerald-400 ml-1">95%</span>
+          </div>
+          <button onclick="openMatchday()" class="lg:hidden px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-extrabold">
+            ⚔️ 경기
+          </button>
+        </div>
+      </header>
+
+      <main id="tab-content" class="flex-1 p-4 sm:p-6 max-w-7xl w-full mx-auto fade-in"></main>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       3. 밴픽 & 실시간 타임라인 중계 모달
+  ========================================================== -->
+  <div id="match-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm overflow-y-auto flex items-center justify-center p-2 sm:p-4">
+    <div class="max-w-6xl w-full bg-fm-panel border border-fm-border rounded-2xl shadow-2xl overflow-hidden my-auto">
+      <!-- 스코어보드 -->
+      <div class="bg-gradient-to-r from-blue-950/85 via-slate-900 to-rose-950/85 p-4 sm:p-5 border-b border-fm-border">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-3 flex-1 min-w-0">
+            <div id="match-blue-badge" class="w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center font-black text-white text-sm sm:text-base shrink-0">T2</div>
+            <div class="min-w-0">
+              <div class="text-[10px] font-bold text-blue-400 uppercase">BLUE SIDE</div>
+              <div id="match-blue-name" class="text-base sm:text-xl font-black text-white truncate">T2</div>
+              <div id="match-blue-gold" class="text-xs font-mono text-amber-400">2.5k G</div>
+            </div>
+          </div>
+
+          <div class="text-center px-2 sm:px-4 shrink-0">
+            <div id="match-phase-badge" class="inline-block px-3 py-0.5 rounded-full bg-slate-800 border border-slate-600 text-[11px] font-extrabold text-emerald-400 mb-1">
+              BAN / PICK
+            </div>
+            <div class="flex items-center justify-center gap-2.5 text-xl sm:text-3xl font-black font-mono text-white">
+              <span id="match-blue-kills" class="text-blue-400">0</span>
+              <span class="text-slate-500 text-sm sm:text-lg">VS</span>
+              <span id="match-red-kills" class="text-rose-400">0</span>
+            </div>
+            <div id="match-clock" class="text-[11px] font-mono text-slate-400 mt-0.5">00:00</div>
+          </div>
+
+          <div class="flex items-center justify-end gap-3 flex-1 min-w-0 text-right">
+            <div class="min-w-0">
+              <div class="text-[10px] font-bold text-rose-400 uppercase">RED SIDE</div>
+              <div id="match-red-name" class="text-base sm:text-xl font-black text-white truncate">Zen.G</div>
+              <div id="match-red-gold" class="text-xs font-mono text-amber-400">2.5k G</div>
+            </div>
+            <div id="match-red-badge" class="w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center font-black text-white text-sm sm:text-base shrink-0">ZG</div>
+          </div>
+        </div>
+
+        <!-- 골드 격차 게이지 -->
+        <div class="mt-3">
+          <div class="flex justify-between text-[11px] font-semibold text-slate-400 mb-1">
+            <span>BLUE GOLD</span>
+            <span id="gold-diff-text" class="text-white font-bold">균형 (0G)</span>
+            <span>RED GOLD</span>
+          </div>
+          <div class="w-full h-2.5 bg-rose-950 rounded-full overflow-hidden flex border border-slate-700/60">
+            <div id="gold-bar-blue" class="bg-blue-500 h-full transition-all duration-500" style="width: 50%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="match-body" class="p-4 sm:p-6"></div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       4. 주간 이벤트 / 브리핑 모달 & 토스트
+  ========================================================== -->
+  <div id="event-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="max-w-lg w-full bg-fm-panel border border-fm-border rounded-2xl shadow-2xl overflow-hidden fade-in">
+      <div class="bg-gradient-to-r from-amber-950/50 to-slate-900 px-6 py-4 border-b border-fm-border flex items-center justify-between">
+        <span id="event-category" class="text-xs font-extrabold uppercase tracking-wider text-amber-400">📰 주간 브리핑</span>
+        <span id="event-week-tag" class="text-xs font-mono text-slate-400">Week 1</span>
+      </div>
+      <div class="p-6">
+        <h3 id="event-title" class="text-lg sm:text-xl font-black text-white mb-2"></h3>
+        <p id="event-desc" class="text-xs sm:text-sm text-slate-300 leading-relaxed mb-5"></p>
+        <div id="event-choices" class="space-y-2.5"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none max-w-sm"></div>
+
+  <script>
+    /*************************************************************************
+     * 상수 및 데이터베이스 (챔피언, 아키타입 상성, 패치 메타, 10개 구단)
+     *************************************************************************/
+    const STORAGE_KEY = 'LCK_MANAGER_26_SAVE_V1';
+    const ROLES = ['TOP', 'JGL', 'MID', 'BOT', 'SUP'];
+    const ROLE_KR = { TOP: '탑', JGL: '정글', MID: '미드', BOT: '원딜', SUP: '서포터' };
+
+    const ARCHETYPE_KR = {
+      ENGAGE: '돌진(이니시)',
+      POKE: '포킹/대치',
+      TEAMFIGHT: '5v5 한타',
+      SPLIT: '사이드 스플릿',
+      PICK: '잘라먹기(매복)',
+      SCALING: '후반 밸류'
+    };
+
+    // 조합 가위바위보 상성: ENGAGE > POKE > TEAMFIGHT > SPLIT > ENGAGE
+    const ARCHETYPE_COUNTERS = {
+      ENGAGE: 'POKE',
+      POKE: 'TEAMFIGHT',
+      TEAMFIGHT: 'SPLIT',
+      SPLIT: 'ENGAGE',
+      PICK: 'SPLIT',
+      SCALING: 'POKE'
+    };
+
+    const TIER_MULT = { OP: 1.12, S: 1.06, A: 1.00, B: 0.94, C: 0.88 };
+
+    const CHAMPIONS = [
+      // TOP
+      { id: 'ksante', name: '크산테', roles: ['TOP'], archetypes: ['ENGAGE', 'TEAMFIGHT'], powerCurve: { early: 0.92, mid: 1.08, late: 1.14 }, metaTier: 'OP', counters: ['gnar', 'jayce'], counteredBy: ['rumble'] },
+      { id: 'rumble', name: '럼블', roles: ['TOP'], archetypes: ['TEAMFIGHT', 'POKE'], powerCurve: { early: 1.14, mid: 1.15, late: 0.95 }, metaTier: 'S', counters: ['ksante', 'renekton'], counteredBy: ['gnar'] },
+      { id: 'renekton', name: '레넥톤', roles: ['TOP'], archetypes: ['ENGAGE', 'SPLIT'], powerCurve: { early: 1.18, mid: 1.04, late: 0.85 }, metaTier: 'A', counters: ['camille', 'yone'], counteredBy: ['rumble', 'ksante'] },
+      { id: 'gnar', name: '나르', roles: ['TOP'], archetypes: ['SPLIT', 'TEAMFIGHT'], powerCurve: { early: 1.00, mid: 1.06, late: 1.10 }, metaTier: 'S', counters: ['renekton', 'rumble'], counteredBy: ['ksante'] },
+      { id: 'camille', name: '카밀', roles: ['TOP'], archetypes: ['SPLIT', 'PICK'], powerCurve: { early: 0.94, mid: 1.10, late: 1.18 }, metaTier: 'A', counters: ['jayce'], counteredBy: ['renekton'] },
+      { id: 'jayce', name: '제이스', roles: ['TOP'], archetypes: ['POKE', 'SPLIT'], powerCurve: { early: 1.15, mid: 1.08, late: 0.88 }, metaTier: 'B', counters: ['rumble'], counteredBy: ['ksante', 'camille'] },
+
+      // JGL
+      { id: 'vi', name: '바이', roles: ['JGL'], archetypes: ['ENGAGE', 'PICK'], powerCurve: { early: 1.05, mid: 1.14, late: 1.00 }, metaTier: 'OP', counters: ['nidalee', 'viego'], counteredBy: ['maokai'] },
+      { id: 'sejuani', name: '세주아니', roles: ['JGL'], archetypes: ['ENGAGE', 'TEAMFIGHT'], powerCurve: { early: 0.98, mid: 1.08, late: 1.10 }, metaTier: 'S', counters: ['leesin'], counteredBy: ['nidalee'] },
+      { id: 'nidalee', name: '니달리', roles: ['JGL'], archetypes: ['POKE', 'PICK'], powerCurve: { early: 1.22, mid: 1.06, late: 0.84 }, metaTier: 'S', counters: ['sejuani'], counteredBy: ['vi', 'leesin'] },
+      { id: 'viego', name: '비에고', roles: ['JGL'], archetypes: ['TEAMFIGHT', 'SCALING'], powerCurve: { early: 0.96, mid: 1.08, late: 1.14 }, metaTier: 'A', counters: ['leesin'], counteredBy: ['vi'] },
+      { id: 'leesin', name: '리 신', roles: ['JGL'], archetypes: ['ENGAGE', 'PICK'], powerCurve: { early: 1.16, mid: 1.04, late: 0.86 }, metaTier: 'A', counters: ['nidalee'], counteredBy: ['sejuani', 'viego'] },
+      { id: 'maokai', name: '마오카이', roles: ['JGL'], archetypes: ['ENGAGE', 'TEAMFIGHT'], powerCurve: { early: 0.96, mid: 1.10, late: 1.12 }, metaTier: 'B', counters: ['vi'], counteredBy: ['nidalee'] },
+
+      // MID
+      { id: 'azir', name: '아지르', roles: ['MID'], archetypes: ['SCALING', 'TEAMFIGHT'], powerCurve: { early: 0.92, mid: 1.06, late: 1.26 }, metaTier: 'OP', counters: ['corki', 'orianna'], counteredBy: ['ahri'] },
+      { id: 'orianna', name: '오리아나', roles: ['MID'], archetypes: ['TEAMFIGHT', 'SCALING'], powerCurve: { early: 1.02, mid: 1.12, late: 1.16 }, metaTier: 'S', counters: ['ahri'], counteredBy: ['azir'] },
+      { id: 'ahri', name: '아리', roles: ['MID'], archetypes: ['PICK', 'ENGAGE'], powerCurve: { early: 1.06, mid: 1.14, late: 0.98 }, metaTier: 'S', counters: ['azir'], counteredBy: ['orianna', 'taliyah'] },
+      { id: 'corki', name: '코르키', roles: ['MID'], archetypes: ['POKE', 'SCALING'], powerCurve: { early: 1.04, mid: 1.12, late: 1.14 }, metaTier: 'A', counters: ['taliyah'], counteredBy: ['azir'] },
+      { id: 'taliyah', name: '탈리야', roles: ['MID'], archetypes: ['TEAMFIGHT', 'POKE'], powerCurve: { early: 1.02, mid: 1.14, late: 1.06 }, metaTier: 'A', counters: ['ahri'], counteredBy: ['corki'] },
+      { id: 'yone', name: '요네', roles: ['MID'], archetypes: ['SPLIT', 'SCALING'], powerCurve: { early: 0.90, mid: 1.06, late: 1.22 }, metaTier: 'B', counters: ['orianna'], counteredBy: ['renekton'] },
+
+      // BOT
+      { id: 'kaisa', name: '카이사', roles: ['BOT'], archetypes: ['ENGAGE', 'SCALING'], powerCurve: { early: 0.96, mid: 1.08, late: 1.20 }, metaTier: 'OP', counters: ['ezreal', 'jhin'], counteredBy: ['varus'] },
+      { id: 'varus', name: '바루스', roles: ['BOT'], archetypes: ['POKE', 'TEAMFIGHT'], powerCurve: { early: 1.18, mid: 1.08, late: 0.94 }, metaTier: 'S', counters: ['kaisa', 'zeri'], counteredBy: ['ashe'] },
+      { id: 'ashe', name: '애쉬', roles: ['BOT'], archetypes: ['ENGAGE', 'PICK'], powerCurve: { early: 1.14, mid: 1.06, late: 1.00 }, metaTier: 'S', counters: ['varus'], counteredBy: ['ezreal'] },
+      { id: 'ezreal', name: '이즈리얼', roles: ['BOT'], archetypes: ['POKE', 'SPLIT'], powerCurve: { early: 1.04, mid: 1.15, late: 1.02 }, metaTier: 'A', counters: ['ashe'], counteredBy: ['kaisa'] },
+      { id: 'zeri', name: '제리', roles: ['BOT'], archetypes: ['SCALING', 'TEAMFIGHT'], powerCurve: { early: 0.88, mid: 1.04, late: 1.26 }, metaTier: 'A', counters: ['ezreal'], counteredBy: ['varus'] },
+      { id: 'jhin', name: '진', roles: ['BOT'], archetypes: ['POKE', 'PICK'], powerCurve: { early: 1.08, mid: 1.06, late: 0.98 }, metaTier: 'B', counters: ['ashe'], counteredBy: ['kaisa'] },
+
+      // SUP
+      { id: 'rell', name: '렐', roles: ['SUP'], archetypes: ['ENGAGE', 'TEAMFIGHT'], powerCurve: { early: 1.02, mid: 1.16, late: 1.08 }, metaTier: 'OP', counters: ['renata', 'nami'], counteredBy: ['alistar'] },
+      { id: 'renata', name: '레나타 글라스크', roles: ['SUP'], archetypes: ['TEAMFIGHT', 'SCALING'], powerCurve: { early: 0.98, mid: 1.08, late: 1.18 }, metaTier: 'S', counters: ['nautilus', 'alistar'], counteredBy: ['rell'] },
+      { id: 'nautilus', name: '노틸러스', roles: ['SUP'], archetypes: ['ENGAGE', 'PICK'], powerCurve: { early: 1.12, mid: 1.08, late: 0.96 }, metaTier: 'S', counters: ['nami'], counteredBy: ['renata'] },
+      { id: 'alistar', name: '알리스타', roles: ['SUP'], archetypes: ['ENGAGE', 'TEAMFIGHT'], powerCurve: { early: 1.00, mid: 1.12, late: 1.10 }, metaTier: 'A', counters: ['rell'], counteredBy: ['renata'] },
+      { id: 'nami', name: '나미', roles: ['SUP'], archetypes: ['POKE', 'TEAMFIGHT'], powerCurve: { early: 1.16, mid: 1.04, late: 0.96 }, metaTier: 'A', counters: ['alistar'], counteredBy: ['nautilus'] },
+      { id: 'thresh', name: '쓰레쉬', roles: ['SUP'], archetypes: ['PICK', 'TEAMFIGHT'], powerCurve: { early: 1.06, mid: 1.08, late: 1.06 }, metaTier: 'B', counters: ['nautilus'], counteredBy: ['renata'] }
+    ];
+
+    const PATCHES = [
+      {
+        version: 'Patch 16.22',
+        title: '상체 교전 & 유충 주도권 메타',
+        desc: '공허 유충 교전 보상과 탑·정글 교전 템포가 상향되었습니다. 돌진(ENGAGE)과 한타(TEAMFIGHT) 조합이 강세입니다.',
+        opIds: ['ksante', 'vi', 'azir', 'kaisa', 'rell'],
+        sIds: ['rumble', 'gnar', 'sejuani', 'nidalee', 'orianna', 'ahri', 'varus', 'ashe', 'renata', 'nautilus']
+      },
+      {
+        version: 'Patch 16.23',
+        title: '원거리 포킹 & 오브젝트 대치 메타',
+        desc: '포킹/대치(POKE)와 후반 밸류(SCALING) 챔피언의 아이템 효율이 올라가며 라인전 및 시야 주도권 싸움이 치열해집니다.',
+        opIds: ['rumble', 'nidalee', 'orianna', 'varus', 'renata'],
+        sIds: ['ksante', 'gnar', 'vi', 'sejuani', 'azir', 'ahri', 'kaisa', 'ashe', 'rell', 'nautilus']
+      },
+      {
+        version: 'Patch 16.24',
+        title: '후반 한타 & 드래곤 영혼 메타',
+        desc: '중후반 5v5 한타와 바론·장로 오브젝트 교전 비중이 커졌습니다. 하이퍼 캐리와 베테랑 멘탈이 빛을 발합니다.',
+        opIds: ['gnar', 'sejuani', 'azir', 'zeri', 'alistar'],
+        sIds: ['ksante', 'rumble', 'vi', 'nidalee', 'orianna', 'ahri', 'kaisa', 'varus', 'renata', 'thresh']
+      }
+    ];
+
+    // 10개 프랜차이즈 구단 (요청된 구단명 + 한두 글자 변형 선수/감독/코치 이름)
+    const INITIAL_TEAMS = [
+      {
+        id: 't2', name: 'T2', short: 'T2', color: '#e11d48', budget: 56.0, fans: 95, goal: '정규리그 1위 & 우승',
+        managerTitle: '꼬망 감독', coachName: '톰스 코치', coachBonus: { mental: 5, teamfight: 3, draft: 3 },
+        roster: [
+          { id: 'p_t2_1', name: '제이슨', role: 'TOP', age: 22, potential: 95, salary: 12.0, stats: { laning: 91, mechanics: 93, teamfight: 89, macro: 85, mental: 87 }, fav: ['gnar', 'jayce', 'rumble'] },
+          { id: 'p_t2_2', name: '오더', role: 'JGL', age: 23, potential: 93, salary: 10.5, stats: { laning: 87, mechanics: 92, teamfight: 90, macro: 88, mental: 89 }, fav: ['vi', 'leesin', 'sejuani'] },
+          { id: 'p_t2_3', name: '페이퍼', role: 'MID', age: 29, potential: 96, salary: 18.0, stats: { laning: 89, mechanics: 90, teamfight: 95, macro: 97, mental: 98 }, fav: ['azir', 'orianna', 'ahri'] },
+          { id: 'p_t2_4', name: '구마유진', role: 'BOT', age: 24, potential: 93, salary: 11.0, stats: { laning: 92, mechanics: 90, teamfight: 91, macro: 87, mental: 92 }, fav: ['varus', 'ashe', 'kaisa'] },
+          { id: 'p_t2_5', name: '케리언', role: 'SUP', age: 23, potential: 96, salary: 12.5, stats: { laning: 93, mechanics: 95, teamfight: 93, macro: 92, mental: 88 }, fav: ['renata', 'thresh', 'nami'] }
+        ]
+      },
+      {
+        id: 'zeng', name: 'Zen.G', short: 'ZG', color: '#eab308', budget: 54.0, fans: 89, goal: '정규리그 우승',
+        managerTitle: '김정훈 감독', coachName: '헬퍼즈 코치', coachBonus: { laning: 4, macro: 4, draft: 4 },
+        roster: [
+          { id: 'p_zg_1', name: '기민', role: 'TOP', age: 26, potential: 94, salary: 12.5, stats: { laning: 93, mechanics: 91, teamfight: 91, macro: 90, mental: 90 }, fav: ['ksante', 'rumble', 'camille'] },
+          { id: 'p_zg_2', name: '캐니온', role: 'JGL', age: 24, potential: 96, salary: 13.5, stats: { laning: 91, mechanics: 94, teamfight: 92, macro: 95, mental: 93 }, fav: ['nidalee', 'sejuani', 'viego'] },
+          { id: 'p_zg_3', name: '쵸빈', role: 'MID', age: 24, potential: 97, salary: 16.5, stats: { laning: 97, mechanics: 96, teamfight: 92, macro: 92, mental: 89 }, fav: ['azir', 'corki', 'yone'] },
+          { id: 'p_zg_4', name: '페이드', role: 'BOT', age: 20, potential: 94, salary: 8.5, stats: { laning: 89, mechanics: 92, teamfight: 91, macro: 86, mental: 88 }, fav: ['kaisa', 'zeri', 'ezreal'] },
+          { id: 'p_zg_5', name: '리헨드', role: 'SUP', age: 27, potential: 91, salary: 9.0, stats: { laning: 88, mechanics: 89, teamfight: 92, macro: 94, mental: 91 }, fav: ['alistar', 'rell', 'maokai'] }
+        ]
+      },
+      {
+        id: 'hanhwa', name: 'Hanhwa Vibe', short: 'HV', color: '#f97316', budget: 55.0, fans: 85, goal: '결승 진출',
+        managerTitle: '단디 감독', coachName: '모글리온 코치', coachBonus: { macro: 4, teamfight: 4, mechanics: 3 },
+        roster: [
+          { id: 'p_hv_1', name: '도현', role: 'TOP', age: 25, potential: 90, salary: 10.0, stats: { laning: 89, mechanics: 89, teamfight: 88, macro: 86, mental: 83 }, fav: ['ksante', 'gnar', 'renekton'] },
+          { id: 'p_hv_2', name: '피넛츠', role: 'JGL', age: 27, potential: 92, salary: 11.5, stats: { laning: 88, mechanics: 88, teamfight: 91, macro: 95, mental: 92 }, fav: ['vi', 'maokai', 'sejuani'] },
+          { id: 'p_hv_3', name: '제칸', role: 'MID', age: 23, potential: 94, salary: 12.0, stats: { laning: 90, mechanics: 93, teamfight: 92, macro: 88, mental: 93 }, fav: ['yone', 'ahri', 'azir'] },
+          { id: 'p_hv_4', name: '바이펀', role: 'BOT', age: 25, potential: 96, salary: 14.5, stats: { laning: 94, mechanics: 95, teamfight: 94, macro: 91, mental: 94 }, fav: ['kaisa', 'ezreal', 'varus'] },
+          { id: 'p_hv_5', name: '딜라잇', role: 'SUP', age: 23, potential: 92, salary: 9.0, stats: { laning: 87, mechanics: 91, teamfight: 93, macro: 89, mental: 89 }, fav: ['rell', 'alistar', 'nautilus'] }
+        ]
+      },
+      {
+        id: 'dplus', name: 'D-Plus KOA', short: 'DK', color: '#06b6d4', budget: 43.0, fans: 82, goal: '플레이오프 상위권',
+        managerTitle: '제파르 감독', coachName: '버블링스 코치', coachBonus: { laning: 3, draft: 5, macro: 3 },
+        roster: [
+          { id: 'p_dk_1', name: '킹겐즈', role: 'TOP', age: 25, potential: 90, salary: 8.5, stats: { laning: 88, mechanics: 88, teamfight: 90, macro: 86, mental: 90 }, fav: ['ksante', 'renekton', 'gnar'] },
+          { id: 'p_dk_2', name: '루시드온', role: 'JGL', age: 20, potential: 93, salary: 6.0, stats: { laning: 86, mechanics: 90, teamfight: 86, macro: 84, mental: 83 }, fav: ['leesin', 'vi', 'viego'] },
+          { id: 'p_dk_3', name: '쇼메이킹', role: 'MID', age: 25, potential: 94, salary: 13.5, stats: { laning: 90, mechanics: 92, teamfight: 92, macro: 91, mental: 91 }, fav: ['ahri', 'taliyah', 'orianna'] },
+          { id: 'p_dk_4', name: '에이밍원', role: 'BOT', age: 25, potential: 91, salary: 9.5, stats: { laning: 90, mechanics: 91, teamfight: 90, macro: 85, mental: 87 }, fav: ['kaisa', 'zeri', 'ezreal'] },
+          { id: 'p_dk_5', name: '켈린즈', role: 'SUP', age: 24, potential: 88, salary: 6.5, stats: { laning: 86, mechanics: 85, teamfight: 87, macro: 88, mental: 84 }, fav: ['nami', 'renata', 'nautilus'] }
+        ]
+      },
+      {
+        id: 'kt', name: 'KT Rolsta', short: 'KT', color: '#ef4444', budget: 41.0, fans: 80, goal: '플레이오프 진출',
+        managerTitle: '히라이즈 감독', coachName: '슈프림온 코치', coachBonus: { teamfight: 4, mental: 4, draft: 3 },
+        roster: [
+          { id: 'p_kt_1', name: '퍼펙트원', role: 'TOP', age: 21, potential: 89, salary: 4.5, stats: { laning: 84, mechanics: 85, teamfight: 84, macro: 82, mental: 83 }, fav: ['ksante', 'renekton', 'rumble'] },
+          { id: 'p_kt_2', name: '표정', role: 'JGL', age: 25, potential: 89, salary: 8.0, stats: { laning: 85, mechanics: 88, teamfight: 88, macro: 86, mental: 88 }, fav: ['vi', 'viego', 'leesin'] },
+          { id: 'p_kt_3', name: '비디원', role: 'MID', age: 26, potential: 93, salary: 11.5, stats: { laning: 91, mechanics: 90, teamfight: 91, macro: 90, mental: 90 }, fav: ['azir', 'taliyah', 'orianna'] },
+          { id: 'p_kt_4', name: '데프턴', role: 'BOT', age: 29, potential: 92, salary: 10.5, stats: { laning: 88, mechanics: 88, teamfight: 92, macro: 92, mental: 95 }, fav: ['varus', 'ashe', 'jhin'] },
+          { id: 'p_kt_5', name: '베린', role: 'SUP', age: 28, potential: 90, salary: 8.5, stats: { laning: 82, mechanics: 84, teamfight: 91, macro: 95, mental: 94 }, fav: ['renata', 'alistar', 'rell'] }
+        ]
+      },
+      {
+        id: 'fearx', name: 'BNK FearX', short: 'FX', color: '#facc15', budget: 32.0, fans: 66, goal: '플레이오프 도전',
+        managerTitle: '류상욱스 감독', coachName: '노바원 코치', coachBonus: { mechanics: 4, macro: 3, draft: 3 },
+        roster: [
+          { id: 'p_fx_1', name: '클리어즈', role: 'TOP', age: 23, potential: 88, salary: 4.5, stats: { laning: 84, mechanics: 85, teamfight: 84, macro: 82, mental: 84 }, fav: ['ksante', 'camille', 'gnar'] },
+          { id: 'p_fx_2', name: '윌러온', role: 'JGL', age: 22, potential: 89, salary: 5.0, stats: { laning: 85, mechanics: 86, teamfight: 85, macro: 84, mental: 84 }, fav: ['vi', 'leesin', 'nidalee'] },
+          { id: 'p_fx_3', name: '클로저스', role: 'MID', age: 22, potential: 91, salary: 7.0, stats: { laning: 88, mechanics: 90, teamfight: 85, macro: 82, mental: 83 }, fav: ['yone', 'ahri', 'azir'] },
+          { id: 'p_fx_4', name: '헤나원', role: 'BOT', age: 25, potential: 87, salary: 5.0, stats: { laning: 84, mechanics: 84, teamfight: 86, macro: 84, mental: 85 }, fav: ['jhin', 'ashe', 'ezreal'] },
+          { id: 'p_fx_5', name: '엑스큐트', role: 'SUP', age: 25, potential: 87, salary: 4.5, stats: { laning: 84, mechanics: 85, teamfight: 84, macro: 85, mental: 83 }, fav: ['thresh', 'nautilus', 'renata'] }
+        ]
+      },
+      {
+        id: 'drx', name: 'DR-X', short: 'DRX', color: '#2563eb', budget: 30.0, fans: 67, goal: '중위권 도약',
+        managerTitle: '목손즈 감독', coachName: '크러쉬온 코치', coachBonus: { macro: 4, mental: 4, draft: 2 },
+        roster: [
+          { id: 'p_dx_1', name: '라스칼즈', role: 'TOP', age: 28, potential: 88, salary: 6.5, stats: { laning: 86, mechanics: 84, teamfight: 86, macro: 87, mental: 89 }, fav: ['renekton', 'gnar', 'ksante'] },
+          { id: 'p_dx_2', name: '스펀지온', role: 'JGL', age: 21, potential: 88, salary: 3.8, stats: { laning: 82, mechanics: 84, teamfight: 83, macro: 82, mental: 82 }, fav: ['vi', 'sejuani', 'maokai'] },
+          { id: 'p_dx_3', name: '예후즈', role: 'MID', age: 21, potential: 88, salary: 3.8, stats: { laning: 83, mechanics: 84, teamfight: 83, macro: 81, mental: 82 }, fav: ['taliyah', 'orianna', 'ahri'] },
+          { id: 'p_dx_4', name: '테디원', role: 'BOT', age: 27, potential: 90, salary: 7.5, stats: { laning: 87, mechanics: 87, teamfight: 90, macro: 88, mental: 90 }, fav: ['ezreal', 'varus', 'zeri'] },
+          { id: 'p_dx_5', name: '플레타즈', role: 'SUP', age: 22, potential: 87, salary: 3.8, stats: { laning: 83, mechanics: 84, teamfight: 83, macro: 83, mental: 84 }, fav: ['nami', 'renata', 'thresh'] }
+        ]
+      },
+      {
+        id: 'ns', name: 'NS RedFoX', short: 'NS', color: '#dc2626', budget: 29.0, fans: 63, goal: '중위권 도약',
+        managerTitle: '아이린스 감독', coachName: '첼리즈 코치', coachBonus: { laning: 3, mental: 4, teamfight: 3 },
+        roster: [
+          { id: 'p_ns_1', name: '든든원', role: 'TOP', age: 22, potential: 87, salary: 4.0, stats: { laning: 83, mechanics: 83, teamfight: 84, macro: 82, mental: 85 }, fav: ['ksante', 'gnar', 'renekton'] },
+          { id: 'p_ns_2', name: '실비온', role: 'JGL', age: 23, potential: 88, salary: 4.5, stats: { laning: 84, mechanics: 85, teamfight: 84, macro: 83, mental: 84 }, fav: ['sejuani', 'vi', 'viego'] },
+          { id: 'p_ns_3', name: '피에스타즈', role: 'MID', age: 23, potential: 87, salary: 4.2, stats: { laning: 83, mechanics: 84, teamfight: 84, macro: 82, mental: 83 }, fav: ['orianna', 'taliyah', 'azir'] },
+          { id: 'p_ns_4', name: '지우온', role: 'BOT', age: 21, potential: 92, salary: 5.5, stats: { laning: 87, mechanics: 90, teamfight: 88, macro: 83, mental: 86 }, fav: ['kaisa', 'zeri', 'ezreal'] },
+          { id: 'p_ns_5', name: '피터즈', role: 'SUP', age: 22, potential: 87, salary: 4.0, stats: { laning: 83, mechanics: 84, teamfight: 84, macro: 82, mental: 85 }, fav: ['nautilus', 'alistar', 'rell'] }
+        ]
+      },
+      {
+        id: 'brion', name: 'OK Brion', short: 'BRO', color: '#16a34a', budget: 26.0, fans: 61, goal: '언더독 반란',
+        managerTitle: '에드가르 감독', coachName: '드링크온 코치', coachBonus: { teamfight: 5, macro: 3, mental: 3 },
+        roster: [
+          { id: 'p_br_1', name: '모건즈', role: 'TOP', age: 24, potential: 88, salary: 5.5, stats: { laning: 85, mechanics: 84, teamfight: 86, macro: 84, mental: 87 }, fav: ['renekton', 'ksante', 'gnar'] },
+          { id: 'p_br_2', name: '기드온즈', role: 'JGL', age: 22, potential: 88, salary: 4.5, stats: { laning: 84, mechanics: 85, teamfight: 83, macro: 82, mental: 82 }, fav: ['leesin', 'vi', 'viego'] },
+          { id: 'p_br_3', name: '카리스원', role: 'MID', age: 22, potential: 87, salary: 4.5, stats: { laning: 83, mechanics: 84, teamfight: 84, macro: 83, mental: 83 }, fav: ['azir', 'orianna', 'corki'] },
+          { id: 'p_br_4', name: '엔비즈', role: 'BOT', age: 24, potential: 87, salary: 4.2, stats: { laning: 83, mechanics: 84, teamfight: 84, macro: 82, mental: 84 }, fav: ['ashe', 'jhin', 'kaisa'] },
+          { id: 'p_br_5', name: '폴루온', role: 'SUP', age: 20, potential: 87, salary: 3.5, stats: { laning: 82, mechanics: 83, teamfight: 83, macro: 81, mental: 83 }, fav: ['nautilus', 'alistar', 'rell'] }
+        ]
+      },
+      {
+        id: 'freecs', name: 'Freecs', short: 'KDF', color: '#3b82f6', budget: 33.0, fans: 69, goal: '플레이오프 진출',
+        managerTitle: '씨맥스 감독', coachName: '밀리언즈 코치', coachBonus: { laning: 5, mechanics: 4, macro: 2 },
+        roster: [
+          { id: 'p_fc_1', name: '두두원', role: 'TOP', age: 24, potential: 90, salary: 6.5, stats: { laning: 87, mechanics: 87, teamfight: 86, macro: 83, mental: 85 }, fav: ['rumble', 'renekton', 'gnar'] },
+          { id: 'p_fc_2', name: '커즈온', role: 'JGL', age: 26, potential: 90, salary: 8.5, stats: { laning: 86, mechanics: 86, teamfight: 88, macro: 91, mental: 88 }, fav: ['sejuani', 'maokai', 'vi'] },
+          { id: 'p_fc_3', name: '불독스', role: 'MID', age: 21, potential: 89, salary: 4.5, stats: { laning: 84, mechanics: 86, teamfight: 84, macro: 81, mental: 80 }, fav: ['ahri', 'yone', 'corki'] },
+          { id: 'p_fc_4', name: '태윤즈', role: 'BOT', age: 23, potential: 87, salary: 4.5, stats: { laning: 84, mechanics: 85, teamfight: 84, macro: 82, mental: 81 }, fav: ['ashe', 'varus', 'kaisa'] },
+          { id: 'p_fc_5', name: '안딜즈', role: 'SUP', age: 23, potential: 88, salary: 4.5, stats: { laning: 85, mechanics: 86, teamfight: 85, macro: 84, mental: 83 }, fav: ['nautilus', 'rell', 'thresh'] }
+        ]
+      }
+    ];
+
+    const INITIAL_FA_POOL = [
+      { id: 'fa_1', name: '칸나즈', role: 'TOP', age: 25, potential: 90, salary: 7.0, fee: 8.0, stats: { laning: 87, mechanics: 86, teamfight: 85, macro: 83, mental: 82 }, fav: ['jayce', 'gnar', 'rumble'] },
+      { id: 'fa_2', name: '클리드온', role: 'JGL', age: 26, potential: 89, salary: 6.5, fee: 7.0, stats: { laning: 86, mechanics: 86, teamfight: 85, macro: 85, mental: 82 }, fav: ['leesin', 'vi', 'sejuani'] },
+      { id: 'fa_3', name: '스카웃츠', role: 'MID', age: 27, potential: 94, salary: 13.0, fee: 16.0, stats: { laning: 91, mechanics: 91, teamfight: 92, macro: 92, mental: 93 }, fav: ['azir', 'orianna', 'yone'] },
+      { id: 'fa_4', name: '룰러즈', role: 'BOT', age: 27, potential: 96, salary: 15.0, fee: 18.0, stats: { laning: 93, mechanics: 94, teamfight: 96, macro: 92, mental: 95 }, fav: ['zeri', 'kaisa', 'ashe'] },
+      { id: 'fa_5', name: '메이코온', role: 'SUP', age: 27, potential: 92, salary: 10.0, fee: 11.0, stats: { laning: 88, mechanics: 87, teamfight: 92, macro: 94, mental: 93 }, fav: ['renata', 'nami', 'thresh'] },
+      { id: 'fa_6', name: '타나토스', role: 'TOP', age: 21, potential: 92, salary: 4.5, fee: 6.5, stats: { laning: 86, mechanics: 88, teamfight: 85, macro: 82, mental: 84 }, fav: ['camille', 'ksante', 'rumble'] }
+    ];
+
+    const INITIAL_COACH_POOL = [
+      { id: 'c_1', name: '옴므즈 코치', fee: 9.0, style: '한타 & 체급 극대화', bonus: { teamfight: 6, laning: 4, draft: 3 } },
+      { id: 'c_2', name: '손대영스 코치', fee: 7.5, style: '멘탈 케어 & 팀워크', bonus: { mental: 6, macro: 3, teamfight: 2 } },
+      { id: 'c_3', name: '코멧온 코치', fee: 6.5, style: '밴픽 심리전 & 시야', bonus: { draft: 7, macro: 3, laning: 2 } },
+      { id: 'c_4', name: '벵기즈 코치', fee: 7.0, style: '정글 동선 & 오브젝트', bonus: { macro: 6, mental: 3, teamfight: 2 } }
+    ];
+
+    // 6개 주요 타임라인 및 실시간 작전 지시 옵션
+    const TIMELINE_PHASES = [
+      { time: '05:30', name: '초반 라인전 & 정글 개입', weights: { laning: 0.60, mechanics: 0.40, teamfight: 0, macro: 0, mental: 0 }, curve: 'early' },
+      { time: '10:20', name: '공허 유충 & 첫 드래곤 교전', weights: { laning: 0.35, mechanics: 0.30, teamfight: 0.10, macro: 0.25, mental: 0 }, curve: 'early' },
+      { time: '14:40', name: '포탑 공방 & 스플릿 전환', weights: { laning: 0.40, mechanics: 0.15, teamfight: 0, macro: 0.40, mental: 0.05 }, curve: 'mid' },
+      { time: '20:30', name: '미드 1차 & 3번째 용 한타', weights: { laning: 0, mechanics: 0.20, teamfight: 0.45, macro: 0.20, mental: 0.15 }, curve: 'mid' },
+      { time: '26:40', name: '바론 대치 & 부쉬 매복 교전', weights: { laning: 0, mechanics: 0.25, teamfight: 0.40, macro: 0.15, mental: 0.20 }, curve: 'late' },
+      { time: '33:10', name: '장로 드래곤 & 넥서스 결전', weights: { laning: 0, mechanics: 0.20, teamfight: 0.45, macro: 0.10, mental: 0.25 }, curve: 'late' }
+    ];
+
+    const LIVE_TACTICS = [
+      { id: 'AGGRESSIVE', label: '🔥 공격적 교전', desc: '초반/중반 교전 전투력 +6%, 리스크 소폭 증가' },
+      { id: 'SCALING', label: '🛡️ 안정적 성장', desc: '후반(25분+) 밸류 및 한타 효율 +7%' },
+      { id: 'SPLIT', label: '🗡️ 사이드 스플릿 압박', desc: '미드/후반 운영(MAC) 및 스플릿 이득 +6%' },
+      { id: 'AMBUSH_BARON', label: '🎯 바론 압박 & 부쉬 매복', desc: '한타/매복 전투력 +6%, 멘탈 집중 보정' },
+      { id: 'ALL_OUT', label: '⚡ 총력전', desc: '전 구간 교전 전투력 +8% (체력 소모 주의)' }
+    ];
+
+    /*************************************************************************
+     * 게임 상태
+     *************************************************************************/
+    let state = {
+      setupTeamId: 't2',
+      managerName: '한감독',
+      userTeamId: null,
+      week: 1,
+      maxWeeks: 18,
+      patchIdx: 0,
+      teams: [],
+      freeAgents: [],
+      coachPool: [],
+      schedule: [],
+      facilities: { training: 1, analysis: 1, mental: 1 },
+      trainingPlan: 'SCRIM',
+      trainedThisWeek: false,
+      tactics: { style: 'AGGRESSIVE', focus: 'TOP_JGL' },
+      news: []
+    };
+
+    let matchCtx = null;
+    let currentTab = 'dashboard';
+
+    /*************************************************************************
+     * 시작 / 세이브 / 로드
+     *************************************************************************/
+    function initSetupScreen() {
+      const hasSave = Boolean(localStorage.getItem(STORAGE_KEY));
+      document.getElementById('load-save-btn').classList.toggle('hidden', !hasSave);
+      document.getElementById('mobile-load-save-btn').classList.toggle('hidden', !hasSave);
+
+      const grid = document.getElementById('team-select-grid');
+      grid.innerHTML = INITIAL_TEAMS.map(t => {
+        const avgOvr = Math.round(t.roster.reduce((sum, p) => sum + calcOvr(p), 0) / 5);
+        const active = t.id === state.setupTeamId;
+        return `
+          <div onclick="selectSetupTeam('${t.id}')"
+            class="cursor-pointer p-3.5 rounded-xl border transition ${active ? 'bg-slate-800/95 border-emerald-500 ring-1 ring-emerald-500' : 'bg-fm-card/70 border-fm-border hover:border-slate-500'}">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="w-8 h-8 rounded-lg flex items-center justify-center font-black text-[11px] text-white shrink-0" style="background:${t.color}">${t.short}</span>
+                <div class="min-w-0">
+                  <div class="font-extrabold text-white text-xs sm:text-sm truncate">${t.name}</div>
+                  <div class="text-[10px] text-slate-400 truncate">${t.managerTitle}</div>
+                </div>
+              </div>
+              <span class="font-mono font-black text-emerald-400 text-sm">${avgOvr}</span>
+            </div>
+            <div class="space-y-1 text-[11px] text-slate-300">
+              ${t.roster.map(p => `<div class="flex justify-between"><span class="text-slate-400">${p.role}</span><span class="font-semibold">${p.name}</span></div>`).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const sel = INITIAL_TEAMS.find(t => t.id === state.setupTeamId);
+      document.getElementById('selected-team-preview').innerHTML =
+        `선택 구단: <strong class="text-white">${sel.name}</strong> (${sel.managerTitle} / ${sel.coachName}) • 초기 자금 <strong class="text-amber-400">${sel.budget.toFixed(1)}억</strong> • 목표: <strong class="text-emerald-400">${sel.goal}</strong>`;
+    }
+
+    function selectSetupTeam(id) {
+      state.setupTeamId = id;
+      initSetupScreen();
+    }
+
+    function attachPlayerDynamicFields(p) {
+      const championMastery = {};
+      CHAMPIONS.filter(c => c.roles.includes(p.role)).forEach(c => {
+        championMastery[c.id] = p.fav.includes(c.id)
+          ? 88 + Math.floor(Math.random() * 8)
+          : 66 + Math.floor(Math.random() * 14);
+      });
+      return {
+        ...p,
+        condition: 95,
+        morale: 85,
+        form: 1.02,
+        championMastery
+      };
+    }
+
+    function startNewCareer() {
+      const inputVal = document.getElementById('manager-name-input').value.trim();
+      state.managerName = inputVal || '한감독';
+      state.userTeamId = state.setupTeamId;
+      state.week = 1;
+      state.patchIdx = 0;
+      applyPatchTiers(0);
+
+      state.teams = JSON.parse(JSON.stringify(INITIAL_TEAMS)).map(t => ({
+        ...t,
+        wins: 0,
+        losses: 0,
+        setWins: 0,
+        setLosses: 0,
+        roster: t.roster.map(p => attachPlayerDynamicFields(p))
+      }));
+
+      state.freeAgents = JSON.parse(JSON.stringify(INITIAL_FA_POOL)).map(p => attachPlayerDynamicFields(p));
+      state.coachPool = JSON.parse(JSON.stringify(INITIAL_COACH_POOL));
+      state.schedule = createDoubleRoundRobin(state.teams.map(t => t.id));
+      state.facilities = { training: 1, analysis: 1, mental: 1 };
+      state.trainingPlan = 'SCRIM';
+      state.trainedThisWeek = false;
+      state.tactics = { style: 'AGGRESSIVE', focus: 'TOP_JGL' };
+      state.news = [
+        { week: 1, text: `📢 ${getUserTeam().name} 신임 감독 '${state.managerName}' 선임! 2026 시즌이 개막합니다.` },
+        { week: 1, text: `🔧 ${PATCHES[0].version} (${PATCHES[0].title}) 패치가 적용되었습니다.` }
+      ];
+
+      saveToStorage(false);
+      enterMainApp();
+      showToast(`${getUserTeam().name} 감독으로 부임했습니다!`);
+    }
+
+    function enterMainApp() {
+      document.getElementById('setup-screen').classList.add('hidden');
+      document.getElementById('main-app').classList.remove('hidden');
+      updateHUD();
+      switchTab('dashboard');
+    }
+
+    function returnToSetup() {
+      document.getElementById('main-app').classList.add('hidden');
+      document.getElementById('setup-screen').classList.remove('hidden');
+      initSetupScreen();
+    }
+
+    function saveToStorage(notify = true) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        if (notify) showToast('💾 현재 커리어 진행 상황이 저장되었습니다.');
+      } catch (e) {
+        if (notify) showToast('저장 공간 접근에 실패했습니다.', 'red');
+      }
+    }
+
+    function loadFromStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        state = JSON.parse(raw);
+        applyPatchTiers(state.patchIdx || 0);
+        enterMainApp();
+        showToast('💾 저장된 커리어를 불러왔습니다!');
+      } catch (e) {
+        showToast('세이브 데이터를 불러오지 못했습니다.', 'red');
+      }
+    }
+
+    function applyPatchTiers(idx) {
+      const p = PATCHES[idx % PATCHES.length];
+      CHAMPIONS.forEach(c => {
+        if (p.opIds.includes(c.id)) c.metaTier = 'OP';
+        else if (p.sIds.includes(c.id)) c.metaTier = 'S';
+        else c.metaTier = 'A';
+      });
+    }
+
+    function createDoubleRoundRobin(teamIds) {
+      const n = teamIds.length;
+      const list = [...teamIds];
+      const weeks = [];
+      for (let r = 0; r < n - 1; r++) {
+        const matches = [];
+        for (let i = 0; i < n / 2; i++) {
+          matches.push({ home: list[i], away: list[n - 1 - i], played: false, result: null });
+        }
+        weeks.push({ week: r + 1, matches });
+        list.splice(1, 0, list.pop());
+      }
+      for (let r = 0; r < n - 1; r++) {
+        weeks.push({
+          week: r + n,
+          matches: weeks[r].matches.map(m => ({ home: m.away, away: m.home, played: false, result: null }))
+        });
+      }
+      return weeks;
+    }
+
+    /*************************************************************************
+     * 헬퍼 & HUD
+     *************************************************************************/
+    function getUserTeam() {
+      return state.teams.find(t => t.id === state.userTeamId);
+    }
+
+    function getTeam(id) {
+      return state.teams.find(t => t.id === id);
+    }
+
+    function calcOvr(p) {
+      const s = p.stats;
+      return Math.round((s.laning + s.mechanics + s.teamfight + s.macro + s.mental) / 5);
+    }
+
+    function getStandings() {
+      return [...state.teams].sort((a, b) => {
+        if (b.wins !== a.wins) return b.wins - a.wins;
+        return (b.setWins - b.setLosses) - (a.setWins - a.setLosses);
+      });
+    }
+
+    function getCurrentUserMatch() {
+      if (state.week > state.maxWeeks) return null;
+      const round = state.schedule.find(w => w.week === state.week);
+      return round ? round.matches.find(m => m.home === state.userTeamId || m.away === state.userTeamId) : null;
+    }
+
+    function pushNews(text) {
+      state.news.unshift({ week: Math.min(state.week, state.maxWeeks), text });
+      if (state.news.length > 25) state.news.pop();
+    }
+
+    function showToast(msg, tone = 'emerald') {
+      const box = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      const styleMap = {
+        emerald: 'bg-slate-900/95 border-emerald-500 text-emerald-300',
+        amber: 'bg-amber-950/95 border-amber-500 text-amber-200',
+        red: 'bg-rose-950/95 border-rose-500 text-rose-200'
+      };
+      el.className = `px-4 py-3 rounded-xl border text-xs sm:text-sm font-bold shadow-xl fade-in ${styleMap[tone] || styleMap.emerald}`;
+      el.textContent = msg;
+      box.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transition = 'opacity 0.25s';
+        setTimeout(() => el.remove(), 250);
+      }, 2600);
+    }
+
+    function toggleMobileMenu() {
+      const nav = document.getElementById('sidebar-nav');
+      nav.classList.toggle('hidden');
+      nav.classList.toggle('flex');
+    }
+
+    function updateHUD() {
+      const team = getUserTeam();
+      const patch = PATCHES[state.patchIdx];
+      document.getElementById('nav-team-badge').textContent = team.short;
+      document.getElementById('nav-team-badge').style.background = team.color;
+      document.getElementById('nav-team-name').textContent = team.name;
+      document.getElementById('nav-manager-name').textContent = `감독: ${state.managerName}`;
+
+      document.getElementById('hud-week').textContent = state.week <= state.maxWeeks
+        ? `Week ${state.week} / ${state.maxWeeks}`
+        : '정규 시즌 종료';
+      document.getElementById('hud-patch').textContent = `${patch.version}`;
+      document.getElementById('hud-budget').textContent = `${team.budget.toFixed(1)}억`;
+      document.getElementById('hud-fans').textContent = `${team.fans}%`;
+
+      const btnText = document.getElementById('sidebar-action-text');
+      if (state.week > state.maxWeeks) {
+        btnText.textContent = '시즌 결산 & 새 시즌';
+      } else {
+        const m = getCurrentUserMatch();
+        const opp = getTeam(m.home === team.id ? m.away : m.home);
+        btnText.textContent = `매치데이 (vs ${opp.short})`;
+      }
+    }
+
+    /*************************************************************************
+     * 탭 렌더링
+     *************************************************************************/
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.nav-btn').forEach(b => {
+        if (b.dataset.tab === tab) {
+          b.className = 'nav-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold text-left transition bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+        } else {
+          b.className = 'nav-btn flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-left transition text-slate-300 hover:bg-fm-card';
+        }
+      });
+
+      const area = document.getElementById('tab-content');
+      area.classList.remove('fade-in');
+      void area.offsetWidth;
+      area.classList.add('fade-in');
+
+      if (tab === 'dashboard') renderDashboard(area);
+      else if (tab === 'squad') renderSquad(area);
+      else if (tab === 'training') renderTraining(area);
+      else if (tab === 'transfers') renderTransfers(area);
+      else if (tab === 'league') renderLeague(area);
+      else if (tab === 'meta') renderMeta(area);
+    }
+
+    function renderDashboard(area) {
+      const team = getUserTeam();
+      const standings = getStandings();
+      const rank = standings.findIndex(t => t.id === team.id) + 1;
+      const match = getCurrentUserMatch();
+      const avgCond = Math.round(team.roster.reduce((s, p) => s + p.condition, 0) / 5);
+      const avgMorale = Math.round(team.roster.reduce((s, p) => s + p.morale, 0) / 5);
+
+      let matchBox = '';
+      if (match) {
+        const opp = getTeam(match.home === team.id ? match.away : match.home);
+        const myOvr = Math.round(team.roster.reduce((s, p) => s + calcOvr(p), 0) / 5);
+        const oppOvr = Math.round(opp.roster.reduce((s, p) => s + calcOvr(p), 0) / 5);
+        matchBox = `
+          <div class="bg-gradient-to-br from-slate-900 via-fm-card to-slate-900 border border-fm-border rounded-2xl p-5 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between text-xs mb-3">
+                <span class="font-extrabold text-emerald-400 uppercase">WEEK ${state.week} MATCHDAY</span>
+                <span class="text-slate-400">Bo3 정규리그</span>
+              </div>
+              <div class="flex items-center justify-between bg-fm-bg/90 border border-fm-border rounded-xl p-4 my-3">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-11 h-11 rounded-xl flex items-center justify-center font-black text-white shrink-0" style="background:${team.color}">${team.short}</div>
+                  <div class="min-w-0">
+                    <div class="font-black text-white text-sm truncate">${team.name}</div>
+                    <div class="text-xs font-mono text-emerald-400">전력 ${myOvr}</div>
+                  </div>
+                </div>
+                <span class="text-base font-black text-slate-500 px-2">VS</span>
+                <div class="flex items-center gap-3 min-w-0 text-right">
+                  <div class="min-w-0">
+                    <div class="font-black text-white text-sm truncate">${opp.name}</div>
+                    <div class="text-xs font-mono text-rose-400">전력 ${oppOvr}</div>
+                  </div>
+                  <div class="w-11 h-11 rounded-xl flex items-center justify-center font-black text-white shrink-0" style="background:${opp.color}">${opp.short}</div>
+                </div>
+              </div>
+              <p class="text-xs text-slate-400 mb-4">
+                상대 사령탑: <strong class="text-slate-200">${opp.managerTitle}</strong> • 코치: <strong class="text-slate-200">${opp.coachName}</strong>
+              </p>
+            </div>
+            <div class="flex gap-2.5">
+              <button onclick="switchTab('training')" class="flex-1 py-2.5 px-3 rounded-xl bg-fm-bg hover:bg-slate-800 border border-fm-border text-xs font-bold text-slate-200 transition">
+                🏋️ 훈련/컨디션 확인
+              </button>
+              <button onclick="openMatchday()" class="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow transition">
+                ⚔️ 밴픽 및 경기 시작
+              </button>
+            </div>
+          </div>
+        `;
+      } else {
+        matchBox = `
+          <div class="bg-fm-card border border-amber-500/40 rounded-2xl p-6 flex flex-col justify-center items-center text-center">
+            <div class="text-3xl mb-2">🏆</div>
+            <h3 class="text-lg font-black text-white">정규 시즌 종료! 최종 ${rank}위 (${team.wins}승 ${team.losses}패)</h3>
+            <p class="text-xs text-slate-300 mt-1">구단 지원금을 받고 다음 시즌으로 이어갈 수 있습니다.</p>
+            <button onclick="startNextSeason()" class="mt-4 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black">
+              다음 시즌 시작 (+15.0억 지원금)
+            </button>
+          </div>
+        `;
+      }
+
+      area.innerHTML = `
+        <div class="space-y-5">
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div class="bg-fm-card border border-fm-border rounded-2xl p-4">
+              <div class="text-xs text-slate-400 font-semibold">현재 리그 순위</div>
+              <div class="text-2xl font-black text-white mt-1">${rank}위 <span class="text-xs font-normal text-slate-400">/ 10</span></div>
+              <div class="text-xs text-emerald-400 mt-1 font-mono">${team.wins}승 ${team.losses}패 (득실 ${team.setWins - team.setLosses >= 0 ? '+' : ''}${team.setWins - team.setLosses})</div>
+            </div>
+            <div class="bg-fm-card border border-fm-border rounded-2xl p-4">
+              <div class="text-xs text-slate-400 font-semibold">구단 시즌 목표</div>
+              <div class="text-base font-black text-amber-400 mt-1 truncate">${team.goal}</div>
+              <div class="text-xs text-slate-400 mt-1">팬심 ${team.fans}%</div>
+            </div>
+            <div class="bg-fm-card border border-fm-border rounded-2xl p-4">
+              <div class="text-xs text-slate-400 font-semibold">컨디션 / 사기</div>
+              <div class="text-2xl font-black text-emerald-400 mt-1 font-mono">${avgCond}%</div>
+              <div class="text-xs text-sky-400 mt-1 font-mono">사기 평균 ${avgMorale}%</div>
+            </div>
+            <div class="bg-fm-card border border-fm-border rounded-2xl p-4">
+              <div class="text-xs text-slate-400 font-semibold">코칭 스태프</div>
+              <div class="text-sm font-extrabold text-white mt-1 truncate">${team.managerTitle}</div>
+              <div class="text-xs text-indigo-400 mt-1 truncate">${team.coachName}</div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            ${matchBox}
+            <div class="bg-fm-card border border-fm-border rounded-2xl p-5">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-extrabold text-white">🏆 정규 리그 순위 (상위 6팀 PO)</h3>
+                <button onclick="switchTab('league')" class="text-xs text-emerald-400 hover:underline">전체 순위/일정 →</button>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left">
+                  <thead class="text-slate-400 border-b border-fm-border">
+                    <tr><th class="py-2">#</th><th class="py-2">구단</th><th class="py-2 text-center">승-패</th><th class="py-2 text-right">득실</th></tr>
+                  </thead>
+                  <tbody class="divide-y divide-fm-border/50">
+                    ${standings.slice(0, 6).map((t, i) => `
+                      <tr class="${t.id === team.id ? 'bg-emerald-500/10 font-bold text-white' : 'text-slate-300'}">
+                        <td class="py-2 font-mono ${i < 6 ? 'text-emerald-400' : ''}">${i + 1}</td>
+                        <td class="py-2 flex items-center gap-2">
+                          <span class="w-5 h-5 rounded text-[10px] font-black text-white flex items-center justify-center" style="background:${t.color}">${t.short}</span>
+                          ${t.name}
+                        </td>
+                        <td class="py-2 text-center font-mono">${t.wins}W - ${t.losses}L</td>
+                        <td class="py-2 text-right font-mono">${t.setWins - t.setLosses >= 0 ? '+' : ''}${t.setWins - t.setLosses}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-fm-card border border-fm-border rounded-2xl p-5">
+            <h3 class="text-sm font-extrabold text-white mb-3">📰 구단 & 리그 브리핑 로그</h3>
+            <div class="space-y-2 max-h-52 overflow-y-auto pr-1">
+              ${state.news.map(n => `
+                <div class="p-2.5 rounded-xl bg-fm-bg border border-fm-border/70 text-xs text-slate-300 flex items-start gap-2">
+                  <span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono shrink-0">W${n.week}</span>
+                  <span>${n.text}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSquad(area) {
+      const team = getUserTeam();
+      area.innerHTML = `
+        <div class="space-y-5">
+          <div class="bg-fm-card border border-fm-border rounded-2xl p-5">
+            <h2 class="text-base font-extrabold text-white mb-1">🎯 기본 전술 & 정글 포커스</h2>
+            <p class="text-xs text-slate-400 mb-4">경기 진입 시 기본 작전으로 적용되며, 경기 중 실시간으로 언제든 변경할 수 있습니다.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="grid grid-cols-2 gap-2">
+                ${LIVE_TACTICS.slice(0, 4).map(t => `
+                  <button onclick="setBaseTactic('${t.id}')"
+                    class="p-3 rounded-xl border text-left transition ${state.tactics.style === t.id ? 'bg-emerald-500/15 border-emerald-500 text-white' : 'bg-fm-bg border-fm-border text-slate-400 hover:border-slate-500'}">
+                    <div class="text-xs font-bold">${t.label}</div>
+                    <div class="text-[11px] opacity-80 mt-0.5">${t.desc}</div>
+                  </button>
+                `).join('')}
+              </div>
+              <div class="space-y-2">
+                ${[
+                  { id: 'TOP_JGL', label: '⬆️ 상체 주도권 (탑/미드 유충 장악)' },
+                  { id: 'MID_BOT', label: '⬇️ 하체 주도권 (바텀 다이브 & 용 스택)' },
+                  { id: 'ALL_ROUND', label: '🔄 밸런스 & 카운터 정글링' }
+                ].map(f => `
+                  <button onclick="setFocus('${f.id}')"
+                    class="w-full p-3 rounded-xl border text-left text-xs font-bold transition ${state.tactics.focus === f.id ? 'bg-indigo-500/20 border-indigo-500 text-white' : 'bg-fm-bg border-fm-border text-slate-400 hover:border-slate-500'}">
+                    ${f.label}
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-3.5">
+            ${team.roster.map(p => {
+              const ovr = calcOvr(p);
+              const favText = p.fav.map(cid => CHAMPIONS.find(c => c.id === cid)?.name).filter(Boolean).join(', ');
+              return `
+                <div class="bg-fm-card border border-fm-border rounded-2xl p-4 sm:p-5">
+                  <div class="flex flex-wrap items-center justify-between gap-3 pb-3.5 border-b border-fm-border">
+                    <div class="flex items-center gap-3">
+                      <div class="w-12 h-12 rounded-xl bg-slate-800 border border-slate-600 flex flex-col items-center justify-center">
+                        <span class="text-[10px] font-bold text-emerald-400">${p.role}</span>
+                        <span class="text-base font-black text-white font-mono">${ovr}</span>
+                      </div>
+                      <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                          <span class="text-base sm:text-lg font-black text-white">${p.name}</span>
+                          <span class="text-xs text-slate-400">${p.age}세</span>
+                          <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-400">잠재력 ${p.potential}</span>
+                          <span class="px-2 py-0.5 rounded text-[11px] font-mono bg-indigo-500/20 text-indigo-300">폼 ${p.form.toFixed(2)}x</span>
+                        </div>
+                        <div class="text-xs text-slate-400 mt-0.5">
+                          선호 픽: <span class="text-slate-200 font-semibold">${favText}</span> • 연봉: <span class="text-amber-400 font-mono">${p.salary}억</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center gap-3 text-xs">
+                      <div class="bg-fm-bg px-3 py-1.5 rounded-xl border border-fm-border text-center">
+                        <div class="text-slate-400 text-[10px]">체력</div>
+                        <div class="font-mono font-bold ${p.condition >= 80 ? 'text-emerald-400' : 'text-rose-400'}">${p.condition}%</div>
+                      </div>
+                      <div class="bg-fm-bg px-3 py-1.5 rounded-xl border border-fm-border text-center">
+                        <div class="text-slate-400 text-[10px]">사기</div>
+                        <div class="font-mono font-bold text-sky-400">${p.morale}%</div>
+                      </div>
+                      <button onclick="encouragePlayer('${p.id}')" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold transition">
+                        💬 면담
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-3.5">
+                    ${[
+                      { k: 'laning', l: '라인전', c: 'bg-rose-500' },
+                      { k: 'mechanics', l: '피지컬', c: 'bg-amber-500' },
+                      { k: 'teamfight', l: '한타력', c: 'bg-emerald-500' },
+                      { k: 'macro', l: '운영/시야', c: 'bg-blue-500' },
+                      { k: 'mental', l: '멘탈', c: 'bg-purple-500' }
+                    ].map(st => `
+                      <div class="bg-fm-bg p-2.5 rounded-xl border border-fm-border/60">
+                        <div class="flex justify-between text-xs mb-1">
+                          <span class="text-slate-400">${st.l}</span>
+                          <span class="font-mono font-bold text-white">${p.stats[st.k]}</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                          <div class="stat-bar-fill h-full ${st.c}" style="width:${p.stats[st.k]}%"></div>
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function setBaseTactic(style) {
+      state.tactics.style = style;
+      renderSquad(document.getElementById('tab-content'));
+      showToast('기본 팀 전술이 변경되었습니다.');
+    }
+
+    function setFocus(focus) {
+      state.tactics.focus = focus;
+      renderSquad(document.getElementById('tab-content'));
+      showToast('정글 포커스가 변경되었습니다.');
+    }
+
+    function encouragePlayer(pid) {
+      const p = getUserTeam().roster.find(x => x.id === pid);
+      if (!p) return;
+      p.morale = Math.min(100, p.morale + 6);
+      p.form = Math.min(1.15, +(p.form + 0.02).toFixed(2));
+      renderSquad(document.getElementById('tab-content'));
+      showToast(`💬 ${p.name} 선수와 면담 완료! (사기 +6, 폼 +0.02)`);
+    }
+
+    function renderTraining(area) {
+      const plans = [
+        { id: 'LANING', title: '⚔️ 라인전 & 솔로랭크 집중', desc: '라인전/피지컬 성장 확률 상승, 체력 소모 -8' },
+        { id: 'SCRIM', title: '🔥 강팀 스크림 & 한타 복기', desc: '한타/숙련도 상승, 체력 소모 -6' },
+        { id: 'MACRO', title: '🧠 운영/시야 & 멘탈 피드백', desc: '운영/멘탈 성장 확률 상승, 체력 소모 -4' },
+        { id: 'REST', title: '🌿 휴식 & 컨디션 회복', desc: '체력 +18, 사기 +10 회복' }
+      ];
+
+      area.innerHTML = `
+        <div class="space-y-5">
+          <div class="bg-fm-card border border-fm-border rounded-2xl p-5">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 class="text-base font-extrabold text-white">🏋️ Week ${state.week} 주간 훈련 배정</h2>
+                <p class="text-xs text-slate-400">주차당 1회 훈련을 실행해 로스터 스탯과 체력을 조율합니다.</p>
+              </div>
+              <button onclick="runWeeklyTraining()" ${state.trainedThisWeek ? 'disabled' : ''}
+                class="px-5 py-2.5 rounded-xl text-xs font-black transition ${state.trainedThisWeek ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow'}">
+                ${state.trainedThisWeek ? '✅ 이번 주 훈련 완료' : '▶ 주간 훈련 실행'}
+              </button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              ${plans.map(pl => `
+                <div onclick="state.trainingPlan='${pl.id}'; renderTraining(document.getElementById('tab-content'));"
+                  class="cursor-pointer p-4 rounded-xl border transition ${state.trainingPlan === pl.id ? 'bg-emerald-500/15 border-emerald-500' : 'bg-fm-bg border-fm-border hover:border-slate-500'}">
+                  <div class="font-bold text-sm text-white">${pl.title}</div>
+                  <div class="text-xs text-slate-400 mt-1">${pl.desc}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="bg-fm-card border border-fm-border rounded-2xl p-5">
+            <h2 class="text-base font-extrabold text-white mb-3">🏢 구단 시설 업그레이드</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              ${[
+                { k: 'training', name: '🖥️ 연습실', desc: '훈련 성장 확률 +12%/Lv' },
+                { k: 'analysis', name: '📊 전력 분석실', desc: '밴픽/조합 시너지 보정 강화' },
+                { k: 'mental', name: '🛋️ 멘탈케어 센터', desc: '체력 회복량 증가' }
+              ].map(f => {
+                const lv = state.facilities[f.k];
+                const cost = lv * 8.0;
+                return `
+                  <div class="bg-fm-bg border border-fm-border rounded-xl p-4 flex flex-col justify-between">
+                    <div>
+                      <div class="flex justify-between items-center mb-1">
+                        <span class="font-bold text-white text-sm">${f.name}</span>
+                        <span class="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-xs font-mono font-bold">Lv.${lv}/5</span>
+                      </div>
+                      <p class="text-xs text-slate-400 mb-4">${f.desc}</p>
+                    </div>
+                    <button onclick="buyFacility('${f.k}', ${cost})" ${lv >= 5 ? 'disabled' : ''}
+                      class="w-full py-2.5 rounded-xl text-xs font-black transition ${lv >= 5 ? 'bg-slate-800 text-slate-500' : 'bg-amber-600 hover:bg-amber-500 text-white'}">
+                      ${lv >= 5 ? '최대 레벨' : `업그레이드 (${cost.toFixed(1)}억)`}
+                    </button>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function runWeeklyTraining() {
+      if (state.trainedThisWeek) return;
+      const team = getUserTeam();
+      const plan = state.trainingPlan;
+      const bonus = state.facilities.training * 0.12;
+      const grown = [];
+
+      team.roster.forEach(p => {
+        if (plan === 'REST') {
+          p.condition = Math.min(100, p.condition + 18 + state.facilities.mental * 2);
+          p.morale = Math.min(100, p.morale + 10);
+          p.form = Math.min(1.15, +(p.form + 0.02).toFixed(2));
+        } else {
+          const drop = plan === 'LANING' ? 8 : plan === 'SCRIM' ? 6 : 4;
+          p.condition = Math.max(45, p.condition - drop + state.facilities.mental);
+          if (Math.random() < 0.48 + bonus) {
+            const pool = plan === 'LANING' ? ['laning', 'mechanics'] : plan === 'SCRIM' ? ['teamfight', 'mechanics'] : ['macro', 'mental'];
+            const statKey = pool[Math.floor(Math.random() * pool.length)];
+            if (p.stats[statKey] < p.potential) {
+              p.stats[statKey] += 1;
+              grown.push(`${p.name}(${statKey} +1)`);
+            }
+          }
+          p.fav.forEach(cid => {
+            if (p.championMastery[cid] < 99) p.championMastery[cid] += 1;
+          });
+        }
+      });
+
+      state.trainedThisWeek = true;
+      const msg = plan === 'REST'
+        ? '🌿 선수단 휴식으로 체력과 사기가 회복되었습니다.'
+        : `🏋️ 주간 훈련 완료! ${grown.length ? '성장: ' + grown.join(', ') : '챔피언 숙련도가 상승했습니다.'}`;
+      pushNews(msg);
+      renderTraining(document.getElementById('tab-content'));
+      showToast(msg);
+    }
+
+    function buyFacility(key, cost) {
+      const team = getUserTeam();
+      if (team.budget < cost) {
+        showToast('구단 자금이 부족합니다!', 'red');
+        return;
+      }
+      team.budget = +(team.budget - cost).toFixed(1);
+      state.facilities[key] += 1;
+      updateHUD();
+      renderTraining(document.getElementById('tab-content'));
+      showToast(`시설이 Lv.${state.facilities[key]}(으)로 업그레이드되었습니다!`);
+    }
+
+    function renderTransfers(area) {
+      const team = getUserTeam();
+      const payroll = team.roster.reduce((s, p) => s + p.salary, 0);
+
+      area.innerHTML = `
+        <div class="space-y-5">
+          <div class="bg-fm-card border border-fm-border rounded-2xl p-5 flex flex-wrap items-center justify-between gap-3">
+            <div class="text-xs sm:text-sm">
+              <span class="text-slate-400">구단 자금:</span> <strong class="text-amber-400 font-mono">${team.budget.toFixed(1)}억</strong>
+              <span class="mx-2 text-slate-600">|</span>
+              <span class="text-slate-400">선수단 연봉 총액:</span> <strong class="text-white font-mono">${payroll.toFixed(1)}억</strong>
+            </div>
+            <button onclick="runSponsorEvent()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">
+              🤝 스폰서 프로모션 (+자금)
+            </button>
+          </div>
+
+          <div class="bg-fm-card border border-fm-border rounded-2xl p-5">
+            <h3 class="text-sm font-extrabold text-white mb-3">👔 코치 영입 / 교체 (현재 코치: ${team.coachName})</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              ${state.coachPool.map(c => `
+                <div class="p-3.5 rounded-xl bg-fm-bg border border-fm-border flex items-center justify-between gap-2">
+                  <div>
+                    <div class="font-bold text-white text-sm">${c.name}</div>
+                    <div class="text-xs text-slate-400">${c.style}</div>
+                  </div>
+                  <button onclick="hireCoach('${c.id}')" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-emerald-600 text-white text-xs font-bold shrink-0">
+                    선임 (${c.fee}억)
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="bg-fm-card border border-fm-border rounded-2xl p-5">
+            <h3 class="text-sm font-extrabold text-white mb-3">🔄 FA 선수 영입 (동일 포지션 주전 교체)</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              ${state.freeAgents.map(fa => `
+                <div class="p-4 rounded-xl bg-fm-bg border border-fm-border flex items-center justify-between gap-3">
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <span class="px-2 py-0.5 rounded bg-slate-800 text-emerald-400 font-bold text-xs">${fa.role}</span>
+                      <span class="font-extrabold text-white text-sm">${fa.name}</span>
+                      <span class="text-xs font-mono text-amber-400">OVR ${calcOvr(fa)}</span>
+                    </div>
+                    <div class="text-xs text-slate-400 mt-1">
+                      라인 ${fa.stats.laning} • 피지컬 ${fa.stats.mechanics} • 한타 ${fa.stats.teamfight} • 운영 ${fa.stats.macro}
+                    </div>
+                  </div>
+                  <button onclick="signFA('${fa.id}')" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shrink-0">
+                    영입 (${fa.fee}억)
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function runSponsorEvent() {
+      const team = getUserTeam();
+      const gain = +(1.5 + (team.fans / 100) * 2.5).toFixed(1);
+      team.budget = +(team.budget + gain).toFixed(1);
+      team.fans = Math.max(35, team.fans - 2);
+      updateHUD();
+      renderTransfers(document.getElementById('tab-content'));
+      showToast(`🤝 스폰서 수익 +${gain}억 원 확보!`);
+    }
+
+    function hireCoach(id) {
+      const team = getUserTeam();
+      const idx = state.coachPool.findIndex(c => c.id === id);
+      if (idx < 0) return;
+      const c = state.coachPool[idx];
+      if (team.budget < c.fee) {
+        showToast('자금이 부족합니다!', 'red');
+        return;
+      }
+      team.budget = +(team.budget - c.fee).toFixed(1);
+      const prevName = team.coachName;
+      const prevBonus = team.coachBonus;
+      team.coachName = c.name;
+      team.coachBonus = c.bonus;
+      state.coachPool[idx] = { id: 'prev_' + Date.now(), name: prevName, fee: 6.0, style: '전임 코치', bonus: prevBonus };
+      updateHUD();
+      pushNews(`👔 ${team.name}, '${c.name}' 코치 선임 완료!`);
+      renderTransfers(document.getElementById('tab-content'));
+      showToast(`${c.name} 코치를 선임했습니다!`);
+    }
+
+    function signFA(id) {
+      const team = getUserTeam();
+      const idx = state.freeAgents.findIndex(p => p.id === id);
+      if (idx < 0) return;
+      const fa = state.freeAgents[idx];
+      if (team.budget < fa.fee) {
+        showToast('이적료가 부족합니다!', 'red');
+        return;
+      }
+      team.budget = +(team.budget - fa.fee).toFixed(1);
+      const rIdx = team.roster.findIndex(p => p.role === fa.role);
+      const outgoing = team.roster[rIdx];
+      team.roster[rIdx] = fa;
+      state.freeAgents[idx] = { ...outgoing, fee: +(outgoing.salary * 0.85).toFixed(1) };
+      updateHUD();
+      pushNews(`✍️ ${team.name}, FA '${fa.name}'(${fa.role}) 영입!`);
+      renderTransfers(document.getElementById('tab-content'));
+      showToast(`${fa.name} 선수를 영입했습니다!`);
+    }
+
+    function renderLeague(area) {
+      const standings = getStandings();
+      const userTeam = getUserTeam();
+      const weekObj = state.schedule.find(w => w.week === Math.min(state.week, state.maxWeeks));
+
+      area.innerHTML = `
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div class="lg:col-span-2 bg-fm-card border border-fm-border rounded-2xl p-5">
+            <h2 class="text-base font-extrabold text-white mb-3">🏆 2026 LCK 정규 리그 순위표</h2>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs sm:text-sm text-left">
+                <thead class="text-xs text-slate-400 border-b border-fm-border">
+                  <tr><th class="py-2">#</th><th class="py-2">구단</th><th class="py-2 text-center">승</th><th class="py-2 text-center">패</th><th class="py-2 text-center">세트득실</th><th class="py-2 text-right">승률</th></tr>
+                </thead>
+                <tbody class="divide-y divide-fm-border/60">
+                  ${standings.map((t, i) => {
+                    const g = t.wins + t.losses;
+                    const wr = g > 0 ? Math.round((t.wins / g) * 100) : 0;
+                    const diff = t.setWins - t.setLosses;
+                    return `
+                      <tr class="${t.id === userTeam.id ? 'bg-emerald-500/15 font-bold text-white' : 'text-slate-300'}">
+                        <td class="py-2.5 font-mono ${i < 6 ? 'text-emerald-400' : 'text-slate-500'}">${i + 1}</td>
+                        <td class="py-2.5 flex items-center gap-2">
+                          <span class="w-6 h-6 rounded text-[10px] font-black text-white flex items-center justify-center" style="background:${t.color}">${t.short}</span>
+                          ${t.name}
+                        </td>
+                        <td class="py-2.5 text-center font-mono text-emerald-400">${t.wins}</td>
+                        <td class="py-2.5 text-center font-mono text-rose-400">${t.losses}</td>
+                        <td class="py-2.5 text-center font-mono">${diff >= 0 ? '+' : ''}${diff}</td>
+                        <td class="py-2.5 text-right font-mono">${wr}%</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="bg-fm-card border border-fm-border rounded-2xl p-5">
+            <h3 class="text-base font-extrabold text-white mb-3">📅 Week ${weekObj.week} 일정</h3>
+            <div class="space-y-2.5">
+              ${weekObj.matches.map(m => {
+                const h = getTeam(m.home);
+                const a = getTeam(m.away);
+                const mine = h.id === userTeam.id || a.id === userTeam.id;
+                return `
+                  <div class="p-3 rounded-xl border ${mine ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-fm-bg border-fm-border'} flex items-center justify-between text-xs font-bold">
+                    <span class="text-white">${h.name}</span>
+                    <span class="font-mono px-2 py-0.5 rounded bg-slate-800 text-amber-400">${m.played ? m.result : 'VS'}</span>
+                    <span class="text-white">${a.name}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderMeta(area) {
+      const patch = PATCHES[state.patchIdx];
+      area.innerHTML = `
+        <div class="space-y-5">
+          <div class="bg-gradient-to-r from-indigo-950/80 to-fm-card border border-indigo-500/30 rounded-2xl p-5">
+            <span class="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-extrabold">${patch.version}</span>
+            <h2 class="text-xl font-black text-white mt-2">${patch.title}</h2>
+            <p class="text-xs sm:text-sm text-slate-300 mt-1">${patch.desc}</p>
+            <div class="mt-3 text-xs text-emerald-400 font-semibold">
+              조합 상성: 돌진(ENGAGE) &gt; 포킹(POKE) &gt; 한타(TEAMFIGHT) &gt; 스플릿(SPLIT) &gt; 돌진(ENGAGE)
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            ${ROLES.map(role => `
+              <div class="bg-fm-card border border-fm-border rounded-2xl p-4">
+                <h3 class="text-sm font-extrabold text-emerald-400 mb-2.5">${ROLE_KR[role]} (${role})</h3>
+                <div class="space-y-2">
+                  ${CHAMPIONS.filter(c => c.roles.includes(role)).map(c => {
+                    const badge = c.metaTier === 'OP' ? 'bg-rose-500 text-white'
+                                : c.metaTier === 'S' ? 'bg-amber-500 text-black'
+                                : 'bg-slate-700 text-slate-200';
+                    return `
+                      <div class="p-2.5 rounded-xl bg-fm-bg border border-fm-border/70 flex items-center justify-between text-xs">
+                        <div>
+                          <div class="font-bold text-white">${c.name}</div>
+                          <div class="text-[10px] text-slate-400">${c.archetypes.map(a => ARCHETYPE_KR[a]).join(' • ')}</div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded font-black ${badge}">${c.metaTier}</span>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    /*************************************************************************
+     * 밴픽 & 6단계 타임라인 경기 시뮬레이션
+     *************************************************************************/
+    // 1페이즈 밴(각 2) -> 1페이즈 픽(블루1, 레드2, 블루2, 레드1) -> 2페이즈 밴(레드1, 블루1) -> 2페이즈 픽(레드1, 블루2, 레드1)
+    const DRAFT_STEPS = [
+      { side: 'BLUE', action: 'BAN', count: 2, label: '1페이즈 블루 밴 (2장)' },
+      { side: 'RED',  action: 'BAN', count: 2, label: '1페이즈 레드 밴 (2장)' },
+      { side: 'BLUE', action: 'PICK', count: 1, label: '1페이즈 블루 1픽' },
+      { side: 'RED',  action: 'PICK', count: 2, label: '1페이즈 레드 1·2픽' },
+      { side: 'BLUE', action: 'PICK', count: 2, label: '1페이즈 블루 2·3픽' },
+      { side: 'RED',  action: 'PICK', count: 1, label: '1페이즈 레드 3픽' },
+      { side: 'RED',  action: 'BAN', count: 1, label: '2페이즈 레드 밴 (1장)' },
+      { side: 'BLUE', action: 'BAN', count: 1, label: '2페이즈 블루 밴 (1장)' },
+      { side: 'RED',  action: 'PICK', count: 1, label: '2페이즈 레드 4픽' },
+      { side: 'BLUE', action: 'PICK', count: 2, label: '2페이즈 블루 4·5픽' },
+      { side: 'RED',  action: 'PICK', count: 1, label: '2페이즈 레드 5픽' }
+    ];
+
+    function openMatchday() {
+      if (state.week > state.maxWeeks) {
+        startNextSeason();
+        return;
+      }
+      const match = getCurrentUserMatch();
+      const userTeam = getUserTeam();
+      const oppTeam = getTeam(match.home === userTeam.id ? match.away : match.home);
+      const userIsBlue = match.home === userTeam.id;
+
+      matchCtx = {
+        match,
+        blueTeam: userIsBlue ? userTeam : oppTeam,
+        redTeam: userIsBlue ? oppTeam : userTeam,
+        userSide: userIsBlue ? 'BLUE' : 'RED',
+        score: { BLUE: 0, RED: 0 },
+        gameNum: 1,
+        mode: 'DRAFT',
+        stepIdx: 0,
+        stepProgress: 0,
+        activeRole: 'TOP',
+        bans: { BLUE: [], RED: [] },
+        picks: { BLUE: {}, RED: {} },
+        phaseIdx: 0,
+        blueGold: 2500,
+        redGold: 2500,
+        blueKills: 0,
+        redKills: 0,
+        liveTactic: state.tactics.style,
+        logs: []
+      };
+
+      setupGameDraft();
+      document.getElementById('match-modal').classList.remove('hidden');
+      renderMatchModal();
+    }
+
+    function setupGameDraft() {
+      matchCtx.mode = 'DRAFT';
+      matchCtx.stepIdx = 0;
+      matchCtx.stepProgress = 0;
+      matchCtx.bans = { BLUE: [], RED: [] };
+      matchCtx.picks = { BLUE: {}, RED: {} };
+      matchCtx.phaseIdx = 0;
+      matchCtx.blueGold = 2500;
+      matchCtx.redGold = 2500;
+      matchCtx.blueKills = 0;
+      matchCtx.redKills = 0;
+      matchCtx.logs = [];
+      runAIUntilUserTurn();
+    }
+
+    function usedChampIds() {
+      return [
+        ...matchCtx.bans.BLUE,
+        ...matchCtx.bans.RED,
+        ...Object.values(matchCtx.picks.BLUE),
+        ...Object.values(matchCtx.picks.RED)
+      ];
+    }
+
+    function runAIUntilUserTurn() {
+      while (matchCtx.stepIdx < DRAFT_STEPS.length) {
+        const st = DRAFT_STEPS[matchCtx.stepIdx];
+        if (st.side === matchCtx.userSide) break;
+
+        const aiSide = st.side;
+        const aiTeam = aiSide === 'BLUE' ? matchCtx.blueTeam : matchCtx.redTeam;
+        const oppTeam = aiSide === 'BLUE' ? matchCtx.redTeam : matchCtx.blueTeam;
+
+        while (matchCtx.stepProgress < st.count) {
+          const used = usedChampIds();
+          if (st.action === 'BAN') {
+            const cand = CHAMPIONS.filter(c => !used.includes(c.id))
+              .sort((a, b) => {
+                const aScore = TIER_MULT[a.metaTier] * 100 + (oppTeam.roster.some(p => p.fav.includes(a.id)) ? 12 : 0);
+                const bScore = TIER_MULT[b.metaTier] * 100 + (oppTeam.roster.some(p => p.fav.includes(b.id)) ? 12 : 0);
+                return bScore - aScore;
+              })[0];
+            if (cand) matchCtx.bans[aiSide].push(cand.id);
+          } else {
+            const openRole = ROLES.find(r => !matchCtx.picks[aiSide][r]);
+            if (openRole) {
+              const pl = aiTeam.roster.find(p => p.role === openRole);
+              const cand = CHAMPIONS.filter(c => c.roles.includes(openRole) && !used.includes(c.id))
+                .sort((a, b) => {
+                  const sA = TIER_MULT[a.metaTier] * (0.85 + 0.3 * ((pl.championMastery[a.id] || 75) / 100));
+                  const sB = TIER_MULT[b.metaTier] * (0.85 + 0.3 * ((pl.championMastery[b.id] || 75) / 100));
+                  return sB - sA;
+                })[0];
+              if (cand) matchCtx.picks[aiSide][openRole] = cand.id;
+            }
+          }
+          matchCtx.stepProgress++;
+        }
+        matchCtx.stepIdx++;
+        matchCtx.stepProgress = 0;
+      }
+    }
+
+    function handleDraftClick(champId) {
+      if (matchCtx.stepIdx >= DRAFT_STEPS.length) return;
+      const st = DRAFT_STEPS[matchCtx.stepIdx];
+      if (st.side !== matchCtx.userSide) return;
+      if (usedChampIds().includes(champId)) return;
+
+      const champ = CHAMPIONS.find(c => c.id === champId);
+      if (st.action === 'BAN') {
+        matchCtx.bans[matchCtx.userSide].push(champId);
+      } else {
+        const targetRole = champ.roles[0];
+        if (matchCtx.picks[matchCtx.userSide][targetRole]) {
+          showToast(`${ROLE_KR[targetRole]} 포지션은 이미 선택했습니다.`, 'amber');
+          return;
+        }
+        matchCtx.picks[matchCtx.userSide][targetRole] = champId;
+      }
+
+      matchCtx.stepProgress++;
+      if (matchCtx.stepProgress >= st.count) {
+        matchCtx.stepIdx++;
+        matchCtx.stepProgress = 0;
+        runAIUntilUserTurn();
+      }
+      renderMatchModal();
+    }
+
+    function autoDraftRemaining() {
+      const userTeam = getUserTeam();
+      while (matchCtx.stepIdx < DRAFT_STEPS.length) {
+        const st = DRAFT_STEPS[matchCtx.stepIdx];
+        if (st.side === matchCtx.userSide) {
+          const used = usedChampIds();
+          if (st.action === 'BAN') {
+            const c = CHAMPIONS.find(x => !used.includes(x.id) && x.metaTier === 'OP') || CHAMPIONS.find(x => !used.includes(x.id));
+            handleDraftClick(c.id);
+          } else {
+            const openRole = ROLES.find(r => !matchCtx.picks[matchCtx.userSide][r]);
+            const pl = userTeam.roster.find(p => p.role === openRole);
+            const c = CHAMPIONS.filter(x => x.roles.includes(openRole) && !used.includes(x.id))
+              .sort((a, b) => (pl.championMastery[b.id] || 75) - (pl.championMastery[a.id] || 75))[0];
+            handleDraftClick(c.id);
+          }
+        } else {
+          runAIUntilUserTurn();
+        }
+      }
+      renderMatchModal();
+    }
+
+    function enterInGame() {
+      matchCtx.mode = 'INGAME';
+      const bSyn = analyzeDraftSynergy('BLUE');
+      const rSyn = analyzeDraftSynergy('RED');
+      matchCtx.logs.push(`[00:00] SET ${matchCtx.gameNum} 인게임 시작! 블루 조합: ${bSyn.label} (${bSyn.mult.toFixed(2)}x) / 레드 조합: ${rSyn.label} (${rSyn.mult.toFixed(2)}x)`);
+      renderMatchModal();
+    }
+
+    function analyzeDraftSynergy(side) {
+      const picks = matchCtx.picks[side];
+      const oppSide = side === 'BLUE' ? 'RED' : 'BLUE';
+      const oppPicks = matchCtx.picks[oppSide];
+      const counts = {};
+
+      ROLES.forEach(r => {
+        const c = CHAMPIONS.find(x => x.id === picks[r]);
+        if (c) c.archetypes.forEach(a => { counts[a] = (counts[a] || 0) + 1; });
+      });
+
+      const topArch = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+      let mult = 1.0;
+      if (topArch && topArch[1] >= 3) mult += 0.05;
+
+      // 조합 가위바위보 상성 체크
+      const oppCounts = {};
+      ROLES.forEach(r => {
+        const c = CHAMPIONS.find(x => x.id === oppPicks[r]);
+        if (c) c.archetypes.forEach(a => { oppCounts[a] = (oppCounts[a] || 0) + 1; });
+      });
+      const oppTop = Object.entries(oppCounts).sort((a, b) => b[1] - a[1])[0];
+      if (topArch && oppTop && ARCHETYPE_COUNTERS[topArch[0]] === oppTop[0]) {
+        mult += 0.05;
+      }
+
+      if (side === matchCtx.userSide) {
+        mult += state.facilities.analysis * 0.015 + ((getUserTeam().coachBonus.draft || 0) * 0.005);
+      }
+
+      return {
+        arch: topArch ? topArch[0] : 'TEAMFIGHT',
+        label: topArch ? ARCHETYPE_KR[topArch[0]] : '밸런스',
+        mult
+      };
+    }
+
+    function stepTimeline() {
+      if (matchCtx.phaseIdx >= TIMELINE_PHASES.length) return;
+      const phase = TIMELINE_PHASES[matchCtx.phaseIdx];
+      const bPow = calcSidePhasePower('BLUE', phase);
+      const rPow = calcSidePhasePower('RED', phase);
+
+      const blueWin = bPow.power >= rPow.power;
+      const winTeam = blueWin ? matchCtx.blueTeam : matchCtx.redTeam;
+      const winInfo = blueWin ? bPow : rPow;
+      const ratio = Math.abs(bPow.power - rPow.power) / Math.max(1, Math.min(bPow.power, rPow.power));
+      const kills = ratio > 0.14 ? 3 + Math.floor(Math.random() * 2) : 1 + Math.floor(Math.random() * 2);
+      const goldGain = Math.round((1350 + ratio * 9000) / 100) * 100;
+
+      if (blueWin) {
+        matchCtx.blueKills += kills;
+        matchCtx.redKills += Math.max(0, kills - 2);
+        matchCtx.blueGold += 3900 + goldGain;
+        matchCtx.redGold += 3900;
+      } else {
+        matchCtx.redKills += kills;
+        matchCtx.blueKills += Math.max(0, kills - 2);
+        matchCtx.redGold += 3900 + goldGain;
+        matchCtx.blueGold += 3900;
+      }
+
+      const critMark = winInfo.star.crit ? ' ⚡[슈퍼플레이]' : '';
+      matchCtx.logs.unshift(
+        `[${phase.time}] ${phase.name} — ${winTeam.name}의 ${winInfo.star.player.name}(${winInfo.star.champ.name})${critMark} 활약! ${kills}킬 획득 및 +${goldGain.toLocaleString()}G 격차!`
+      );
+
+      matchCtx.phaseIdx++;
+      if (matchCtx.phaseIdx >= TIMELINE_PHASES.length) {
+        const winnerSide = matchCtx.blueGold >= matchCtx.redGold ? 'BLUE' : 'RED';
+        const winnerTeam = winnerSide === 'BLUE' ? matchCtx.blueTeam : matchCtx.redTeam;
+        matchCtx.score[winnerSide] += 1;
+        matchCtx.logs.unshift(`💥 [SET ${matchCtx.gameNum} 종료] ${winnerTeam.name} 승리! (스코어 ${matchCtx.score.BLUE} : ${matchCtx.score.RED})`);
+      }
+
+      renderMatchModal();
+    }
+
+    function calcSidePhasePower(side, phase) {
+      const team = side === 'BLUE' ? matchCtx.blueTeam : matchCtx.redTeam;
+      const oppSide = side === 'BLUE' ? 'RED' : 'BLUE';
+      const syn = analyzeDraftSynergy(side);
+      let total = 0;
+      let star = { player: team.roster[0], champ: CHAMPIONS[0], val: 0, crit: false };
+
+      team.roster.forEach(p => {
+        const champ = CHAMPIONS.find(c => c.id === matchCtx.picks[side][p.role]) || CHAMPIONS[0];
+        const oppChamp = CHAMPIONS.find(c => c.id === matchCtx.picks[oppSide][p.role]);
+        const w = phase.weights;
+        const cb = team.coachBonus || {};
+
+        const base = (p.stats.laning + (cb.laning || 0)) * w.laning
+                   + (p.stats.mechanics + (cb.mechanics || 0)) * w.mechanics
+                   + (p.stats.teamfight + (cb.teamfight || 0)) * w.teamfight
+                   + (p.stats.macro + (cb.macro || 0)) * w.macro
+                   + (p.stats.mental + (cb.mental || 0)) * w.mental;
+
+        const mastery = p.championMastery[champ.id] || 75;
+        const cMod = TIER_MULT[champ.metaTier] * (0.85 + 0.30 * (mastery / 100));
+        const sMod = p.form * (0.82 + 0.18 * (p.condition / 100)) * (0.90 + 0.10 * (p.morale / 100));
+        const curve = champ.powerCurve[phase.curve];
+        const counterMod = oppChamp && champ.counters.includes(oppChamp.id) ? 1.07 : 1.0;
+
+        let pwr = base * cMod * sMod * curve * counterMod;
+        let crit = false;
+        if (Math.random() < p.stats.mechanics / 950) {
+          pwr *= 1.15;
+          crit = true;
+        }
+        if (pwr > star.val) star = { player: p, champ, val: pwr, crit };
+        total += pwr;
+      });
+
+      let tacMod = 1.0;
+      if (side === matchCtx.userSide) {
+        if (matchCtx.liveTactic === 'AGGRESSIVE' && phase.curve !== 'late') tacMod = 1.06;
+        else if (matchCtx.liveTactic === 'SCALING' && phase.curve === 'late') tacMod = 1.07;
+        else if (matchCtx.liveTactic === 'SPLIT' && phase.curve === 'mid') tacMod = 1.06;
+        else if (matchCtx.liveTactic === 'AMBUSH_BARON' && phase.curve === 'late') tacMod = 1.06;
+        else if (matchCtx.liveTactic === 'ALL_OUT') tacMod = 1.08;
+      }
+
+      const myG = side === 'BLUE' ? matchCtx.blueGold : matchCtx.redGold;
+      const oppG = side === 'BLUE' ? matchCtx.redGold : matchCtx.blueGold;
+      const goldFactor = 1 + Math.max(-0.25, Math.min(0.25, (myG - oppG) / Math.max(10000, oppG))) * 0.5;
+      const rng = 0.90 + Math.random() * 0.20;
+
+      return { power: total * syn.mult * tacMod * goldFactor * rng, star };
+    }
+
+    function advanceMatchOrClose() {
+      if (matchCtx.score.BLUE >= 2 || matchCtx.score.RED >= 2) {
+        finishMatchSeries();
+      } else {
+        matchCtx.gameNum += 1;
+        setupGameDraft();
+        renderMatchModal();
+      }
+    }
+
+    function finishMatchSeries() {
+      const s = matchCtx.score;
+      const blueWon = s.BLUE > s.RED;
+      const winTeam = blueWon ? matchCtx.blueTeam : matchCtx.redTeam;
+      const loseTeam = blueWon ? matchCtx.redTeam : matchCtx.blueTeam;
+
+      winTeam.wins += 1;
+      loseTeam.losses += 1;
+      matchCtx.blueTeam.setWins += s.BLUE;
+      matchCtx.blueTeam.setLosses += s.RED;
+      matchCtx.redTeam.setWins += s.RED;
+      matchCtx.redTeam.setLosses += s.BLUE;
+
+      matchCtx.match.played = true;
+      matchCtx.match.result = `${s.BLUE}:${s.RED}`;
+
+      const userWon = (matchCtx.userSide === 'BLUE' && blueWon) || (matchCtx.userSide === 'RED' && !blueWon);
+      const uTeam = getUserTeam();
+      uTeam.roster.forEach(p => {
+        p.condition = Math.max(45, p.condition - 10);
+        p.morale = userWon ? Math.min(100, p.morale + 7) : Math.max(40, p.morale - 6);
+        p.form = userWon ? Math.min(1.15, +(p.form + 0.03).toFixed(2)) : Math.max(0.88, +(p.form - 0.02).toFixed(2));
+      });
+
+      if (userWon) {
+        uTeam.budget = +(uTeam.budget + 1.5).toFixed(1);
+        uTeam.fans = Math.min(100, uTeam.fans + 3);
+        pushNews(`🎉 ${uTeam.name}, ${loseTeam.name}전 ${s.BLUE}:${s.RED} 승리! (+1.5억 수당)`);
+      } else {
+        uTeam.fans = Math.max(35, uTeam.fans - 2);
+        pushNews(`💧 ${uTeam.name}, ${winTeam.name}전 ${s.BLUE}:${s.RED} 패배.`);
+      }
+
+      // 타 구단 경기 시뮬레이션 및 주차 진행
+      const round = state.schedule.find(w => w.week === state.week);
+      round.matches.forEach(m => {
+        if (m.played) return;
+        const h = getTeam(m.home);
+        const a = getTeam(m.away);
+        const hPwr = h.roster.reduce((sum, p) => sum + calcOvr(p), 0) + (Math.random() * 24 - 12);
+        const aPwr = a.roster.reduce((sum, p) => sum + calcOvr(p), 0) + (Math.random() * 24 - 12);
+        if (hPwr >= aPwr) {
+          const lSet = Math.random() < 0.4 ? 1 : 0;
+          h.wins++; a.losses++; h.setWins += 2; h.setLosses += lSet; a.setWins += lSet; a.setLosses += 2;
+          m.result = `2:${lSet}`;
+        } else {
+          const lSet = Math.random() < 0.4 ? 1 : 0;
+          a.wins++; h.losses++; a.setWins += 2; a.setLosses += lSet; h.setWins += lSet; h.setLosses += 2;
+          m.result = `${lSet}:2`;
+        }
+        m.played = true;
+      });
+
+      // 주간 급여 정산 & 자연 회복
+      const wage = +(uTeam.roster.reduce((sum, p) => sum + p.salary, 0) / 18).toFixed(2);
+      uTeam.budget = +(uTeam.budget - wage).toFixed(1);
+      uTeam.roster.forEach(p => {
+        p.condition = Math.min(100, p.condition + 6 + state.facilities.mental * 2);
+      });
+
+      state.week += 1;
+      state.trainedThisWeek = false;
+
+      if (state.week === 7 || state.week === 13) {
+        state.patchIdx = (state.patchIdx + 1) % PATCHES.length;
+        applyPatchTiers(state.patchIdx);
+        pushNews(`🚨 ${PATCHES[state.patchIdx].version} (${PATCHES[state.patchIdx].title}) 패치가 반영되었습니다!`);
+      }
+
+      saveToStorage(false);
+      document.getElementById('match-modal').classList.add('hidden');
+      updateHUD();
+      switchTab('dashboard');
+
+      if (state.week <= state.maxWeeks) openWeeklyBriefing();
+    }
+
+    function openWeeklyBriefing() {
+      const team = getUserTeam();
+      const target = team.roster[Math.floor(Math.random() * team.roster.length)];
+      const cards = [
+        {
+          cat: '🎙️ 미디어 인터뷰',
+          title: `기자단: "다음 경기를 앞둔 ${team.name}의 각오는?"`,
+          desc: '인터뷰 답변에 따라 선수단 사기와 팬 반응이 달라집니다.',
+          opts: [
+            { label: '🔥 "압도적인 승리를 가져오겠습니다." (사기 +5, 팬심 +2%)', fn: () => { team.roster.forEach(p => p.morale = Math.min(100, p.morale + 5)); team.fans = Math.min(100, team.fans + 2); } },
+            { label: '⚖️ "상대를 존중하며 준비한 대로 풀겠습니다." (팬심 +1%)', fn: () => { team.fans = Math.min(100, team.fans + 1); } }
+          ]
+        },
+        {
+          cat: '💬 선수 컨디션 체크',
+          title: `${target.name}(${target.role}) 선수의 최근 연습 피드백`,
+          desc: `${target.name} 선수가 추가 연습 또는 휴식을 원하고 있습니다.`,
+          opts: [
+            { label: '🌿 휴식 부여 (체력 +10, 사기 +5)', fn: () => { target.condition = Math.min(100, target.condition + 10); target.morale = Math.min(100, target.morale + 5); } },
+            { label: '⚡ 개인 메카닉 보완 (피지컬 +1)', fn: () => { if (target.stats.mechanics < target.potential) target.stats.mechanics += 1; } }
+          ]
+        }
+      ];
+      const chosen = cards[Math.floor(Math.random() * cards.length)];
+      document.getElementById('event-category').textContent = chosen.cat;
+      document.getElementById('event-week-tag').textContent = `Week ${state.week}`;
+      document.getElementById('event-title').textContent = chosen.title;
+      document.getElementById('event-desc').textContent = chosen.desc;
+
+      const wrap = document.getElementById('event-choices');
+      wrap.innerHTML = '';
+      chosen.opts.forEach(o => {
+        const btn = document.createElement('button');
+        btn.className = 'w-full p-3.5 rounded-xl bg-fm-card hover:bg-slate-800 border border-fm-border hover:border-emerald-500 text-left text-xs font-bold text-white transition';
+        btn.textContent = o.label;
+        btn.onclick = () => {
+          o.fn();
+          document.getElementById('event-modal').classList.add('hidden');
+          saveToStorage(false);
+          updateHUD();
+          switchTab(currentTab);
+          showToast('브리핑 결정이 반영되었습니다.');
+        };
+        wrap.appendChild(btn);
+      });
+
+      document.getElementById('event-modal').classList.remove('hidden');
+    }
+
+    function startNextSeason() {
+      state.week = 1;
+      state.trainedThisWeek = false;
+      state.teams.forEach(t => {
+        t.wins = 0; t.losses = 0; t.setWins = 0; t.setLosses = 0;
+        t.budget = +(t.budget + 15.0).toFixed(1);
+        t.roster.forEach(p => { p.age += 1; p.condition = 95; p.morale = 85; });
+      });
+      state.schedule = createDoubleRoundRobin(state.teams.map(t => t.id));
+      pushNews('🌟 새 시즌이 시작되었습니다! 구단 지원금 +15.0억 원이 지급되었습니다.');
+      saveToStorage(false);
+      updateHUD();
+      switchTab('dashboard');
+      showToast('새 시즌을 시작합니다!');
+    }
+
+    function renderMatchModal() {
+      const m = matchCtx;
+      document.getElementById('match-blue-badge').textContent = m.blueTeam.short;
+      document.getElementById('match-blue-badge').style.background = m.blueTeam.color;
+      document.getElementById('match-blue-name').textContent = `${m.blueTeam.name} (${m.score.BLUE})`;
+      document.getElementById('match-blue-gold').textContent = `${(m.blueGold / 1000).toFixed(1)}k G`;
+      document.getElementById('match-blue-kills').textContent = m.blueKills;
+
+      document.getElementById('match-red-badge').textContent = m.redTeam.short;
+      document.getElementById('match-red-badge').style.background = m.redTeam.color;
+      document.getElementById('match-red-name').textContent = `(${m.score.RED}) ${m.redTeam.name}`;
+      document.getElementById('match-red-gold').textContent = `${(m.redGold / 1000).toFixed(1)}k G`;
+      document.getElementById('match-red-kills').textContent = m.redKills;
+
+      const diff = m.blueGold - m.redGold;
+      const pct = Math.max(15, Math.min(85, 50 + diff / 300));
+      document.getElementById('gold-bar-blue').style.width = `${pct}%`;
+      document.getElementById('gold-diff-text').textContent = diff === 0
+        ? '균형 (0G)'
+        : `${diff > 0 ? m.blueTeam.short : m.redTeam.short} +${Math.abs(diff).toLocaleString()}G`;
+
+      const body = document.getElementById('match-body');
+
+      if (m.mode === 'DRAFT') {
+        const done = m.stepIdx >= DRAFT_STEPS.length;
+        const st = DRAFT_STEPS[m.stepIdx];
+        const used = usedChampIds();
+        const uTeam = getUserTeam();
+
+        document.getElementById('match-phase-badge').textContent = `SET ${m.gameNum} • BAN / PICK`;
+        document.getElementById('match-clock').textContent = done ? '밴픽 완료' : st.label;
+
+        body.innerHTML = `
+          <div class="space-y-4">
+            <div class="bg-fm-bg border border-fm-border rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div class="text-xs sm:text-sm font-bold text-white">
+                ${done
+                  ? '✅ 밴픽이 완료되었습니다! 인게임으로 진입하세요.'
+                  : `진행 단계: <span class="text-emerald-400">${st.label}</span> (${st.action === 'BAN' ? '밴할 챔피언 선택' : '픽할 챔피언 선택'})`}
+              </div>
+              ${!done
+                ? `<button onclick="autoDraftRemaining()" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-white">🤖 코치 추천 자동 밴픽</button>`
+                : `<button onclick="enterInGame()" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-black text-white shadow">⚔️ 인게임 진입 →</button>`}
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div class="bg-fm-bg p-3 rounded-xl border border-blue-500/30">
+                <div class="text-blue-400 font-bold mb-1">${m.blueTeam.name} BAN</div>
+                <div class="flex flex-wrap gap-1.5">
+                  ${m.bans.BLUE.map(cid => `<span class="px-2 py-0.5 rounded bg-slate-900 text-rose-400 line-through">${CHAMPIONS.find(c => c.id === cid)?.name}</span>`).join('') || '<span class="text-slate-600">없음</span>'}
+                </div>
+              </div>
+              <div class="bg-fm-bg p-3 rounded-xl border border-rose-500/30 text-right">
+                <div class="text-rose-400 font-bold mb-1">${m.redTeam.name} BAN</div>
+                <div class="flex flex-wrap justify-end gap-1.5">
+                  ${m.bans.RED.map(cid => `<span class="px-2 py-0.5 rounded bg-slate-900 text-rose-400 line-through">${CHAMPIONS.find(c => c.id === cid)?.name}</span>`).join('') || '<span class="text-slate-600">없음</span>'}
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              <div class="space-y-1.5">
+                ${ROLES.map(r => {
+                  const p = m.blueTeam.roster.find(x => x.role === r);
+                  const c = CHAMPIONS.find(x => x.id === m.picks.BLUE[r]);
+                  return `
+                    <div class="p-2.5 rounded-xl bg-fm-bg border border-blue-500/30 flex items-center justify-between text-xs">
+                      <span><strong class="text-blue-400 mr-1.5">${r}</strong><strong class="text-white">${p.name}</strong></span>
+                      <span class="font-bold ${c ? 'text-emerald-400' : 'text-slate-500'}">${c ? `${c.name} (${c.metaTier})` : '대기'}</span>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+              <div class="space-y-1.5">
+                ${ROLES.map(r => {
+                  const p = m.redTeam.roster.find(x => x.role === r);
+                  const c = CHAMPIONS.find(x => x.id === m.picks.RED[r]);
+                  return `
+                    <div class="p-2.5 rounded-xl bg-fm-bg border border-rose-500/30 flex items-center justify-between text-xs">
+                      <span class="font-bold ${c ? 'text-amber-400' : 'text-slate-500'}">${c ? `${c.name} (${c.metaTier})` : '대기'}</span>
+                      <span><strong class="text-white">${p.name}</strong><strong class="text-rose-400 ml-1.5">${r}</strong></span>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            ${!done ? `
+              <div class="bg-fm-bg border border-fm-border rounded-xl p-3.5">
+                <div class="flex flex-wrap gap-1.5 mb-3">
+                  ${ROLES.map(r => `
+                    <button onclick="matchCtx.activeRole='${r}'; renderMatchModal();"
+                      class="px-3 py-1 rounded-lg text-xs font-bold ${m.activeRole === r ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}">
+                      ${ROLE_KR[r]}
+                    </button>
+                  `).join('')}
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+                  ${CHAMPIONS.filter(c => c.roles.includes(m.activeRole)).map(c => {
+                    const isUsed = used.includes(c.id);
+                    const pl = uTeam.roster.find(p => p.role === c.roles[0]);
+                    const isFav = pl && pl.fav.includes(c.id);
+                    return `
+                      <button onclick="handleDraftClick('${c.id}')" ${isUsed ? 'disabled' : ''}
+                        class="p-2.5 rounded-xl border text-left transition ${isUsed ? 'bg-slate-900/40 border-slate-800 opacity-40 cursor-not-allowed' : 'bg-fm-card border-fm-border hover:border-emerald-500'}">
+                        <div class="flex justify-between items-center">
+                          <span class="font-bold text-xs text-white truncate">${isFav ? '★ ' : ''}${c.name}</span>
+                          <span class="text-[10px] font-black px-1.5 rounded ${c.metaTier === 'OP' ? 'bg-rose-500 text-white' : 'bg-slate-800 text-amber-400'}">${c.metaTier}</span>
+                        </div>
+                        <div class="text-[10px] text-slate-400 mt-1">숙련 ${pl ? (pl.championMastery[c.id] || 75) : 75}</div>
+                      </button>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      } else {
+        const finished = m.phaseIdx >= TIMELINE_PHASES.length;
+        const curPhase = TIMELINE_PHASES[Math.min(m.phaseIdx, TIMELINE_PHASES.length - 1)];
+        document.getElementById('match-phase-badge').textContent = finished ? `SET ${m.gameNum} END` : `SET ${m.gameNum} • LIVE`;
+        document.getElementById('match-clock').textContent = finished ? '세트 종료' : curPhase.time;
+
+        body.innerHTML = `
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div class="space-y-3">
+              <div class="bg-fm-bg border border-fm-border rounded-xl p-3.5">
+                <div class="text-xs font-extrabold text-emerald-400 mb-2">📋 실시간 감독 작전 지시</div>
+                <div class="space-y-1.5">
+                  ${LIVE_TACTICS.map(t => `
+                    <button onclick="matchCtx.liveTactic='${t.id}'; matchCtx.logs.unshift('📋 [작전 변경] ${t.label} 지시!'); renderMatchModal();" ${finished ? 'disabled' : ''}
+                      class="w-full p-2 rounded-lg border text-left text-xs font-bold transition ${m.liveTactic === t.id ? 'bg-emerald-500/20 border-emerald-500 text-white' : 'bg-fm-card border-fm-border text-slate-400 hover:border-slate-500'}">
+                      <div>${t.label}</div>
+                      <div class="text-[10px] opacity-75">${t.desc}</div>
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+
+              ${!finished
+                ? `<button onclick="stepTimeline()" class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm shadow-lg transition transform active:scale-95">▶ 다음 타임라인 (${curPhase.time} ${curPhase.name})</button>`
+                : `<button onclick="advanceMatchOrClose()" class="w-full py-3.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs sm:text-sm shadow-lg transition">${(m.score.BLUE >= 2 || m.score.RED >= 2) ? '🏆 시리즈 정산 및 다음 주차 →' : `⚔️ SET ${m.gameNum + 1} 밴픽 →`}</button>`}
+            </div>
+
+            <div class="lg:col-span-2 bg-fm-bg border border-fm-border rounded-xl p-4 flex flex-col">
+              <div class="flex items-center justify-between pb-2 mb-3 border-b border-fm-border text-xs">
+                <span class="font-extrabold text-white">🎙️ 타임라인 중계 로그 (${m.phaseIdx} / ${TIMELINE_PHASES.length})</span>
+                <span class="text-slate-400 font-mono">SET ${m.score.BLUE} : ${m.score.RED}</span>
+              </div>
+              <div class="space-y-2 max-h-80 overflow-y-auto pr-1 flex-1">
+                ${m.logs.map((l, idx) => `
+                  <div class="p-3 rounded-xl border text-xs leading-relaxed ${idx === 0 ? 'bg-slate-800/90 border-emerald-500/40 text-white font-semibold' : 'bg-fm-card/60 border-fm-border/60 text-slate-300'}">
+                    ${l}
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    window.onload = function () {
+      initSetupScreen();
+    };
+  </script>
+</body>
+</html>
+```
