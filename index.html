@@ -661,7 +661,10 @@
       trainedThisWeek: false,
       interviewsLeftThisWeek: 2,
       sponsorsLeftThisSeason: 3,
-      tuning: { ...DEFAULT_TUNING },
+      preSeasonFaLeft: 1,
+      postSeasonFaLeft: 1,
+      preSeasonCoachLeft: 1,
+      postSeasonCoachLeft: 1,
       tactics: { style: 'SCALING', focus: 'TOP_JGL' },
       lastSeriesReport: null,
       news: []
@@ -757,7 +760,10 @@
       state.trainedThisWeek = false;
       state.interviewsLeftThisWeek = 2;
       state.sponsorsLeftThisSeason = 3;
-      state.tuning = { ...DEFAULT_TUNING };
+      state.preSeasonFaLeft = 1;
+      state.postSeasonFaLeft = 1;
+      state.preSeasonCoachLeft = 1;
+      state.postSeasonCoachLeft = 1;
       state.tactics = { style: 'SCALING', focus: 'TOP_JGL' };
       state.lastSeriesReport = null;
       state.news = [
@@ -803,7 +809,10 @@
           year: parsed.year || 2026,
           interviewsLeftThisWeek: parsed.interviewsLeftThisWeek ?? 2,
           sponsorsLeftThisSeason: parsed.sponsorsLeftThisSeason ?? 3,
-          tuning: { ...DEFAULT_TUNING, ...(parsed.tuning || {}) }
+          preSeasonFaLeft: parsed.preSeasonFaLeft ?? 1,
+          postSeasonFaLeft: parsed.postSeasonFaLeft ?? 1,
+          preSeasonCoachLeft: parsed.preSeasonCoachLeft ?? 1,
+          postSeasonCoachLeft: parsed.postSeasonCoachLeft ?? 1
         };
         state.teams.forEach(t => {
           if (!t.academy) t.academy = [];
@@ -881,6 +890,38 @@
       if (state.week > state.maxWeeks) return null;
       const round = state.schedule.find(w => w.week === state.week);
       return round ? round.matches.find(m => m.home === state.userTeamId || m.away === state.userTeamId) : null;
+    }
+
+    // 이적시장(FA 영입 & 코치 선임) 허용 기간 판별: 시즌 개막 전(Week 1 첫 경기 전) 또는 정규시즌 종료 후 스토브리그
+    function getTransferWindowStatus() {
+      if (state.week === 1) {
+        const firstMatch = getCurrentUserMatch();
+        if (firstMatch && !firstMatch.played) {
+          return {
+            phase: 'PRE',
+            isOpen: true,
+            faLeft: state.preSeasonFaLeft,
+            coachLeft: state.preSeasonCoachLeft,
+            label: '개막 전 이적시장 (시즌 시작 전 1회 한정)'
+          };
+        }
+      }
+      if (state.week > state.maxWeeks) {
+        return {
+          phase: 'POST',
+          isOpen: true,
+          faLeft: state.postSeasonFaLeft,
+          coachLeft: state.postSeasonCoachLeft,
+          label: '스토브리그 이적시장 (시즌 종료 후 1회 한정)'
+        };
+      }
+      return {
+        phase: 'CLOSED',
+        isOpen: false,
+        faLeft: 0,
+        coachLeft: 0,
+        label: '정규 시즌 진행 중 (FA 및 코치 영입/교체 마감)'
+      };
     }
 
     function pushNews(text) {
@@ -1544,23 +1585,52 @@
     function renderTransfers(area) {
       const team = getUserTeam();
       const payroll = [...team.roster, ...(team.academy || [])].reduce((s, p) => s + p.salary, 0);
+      const winStatus = getTransferWindowStatus();
+      const canSignFA = winStatus.isOpen && winStatus.faLeft > 0;
+      const canHireCoach = winStatus.isOpen && winStatus.coachLeft > 0;
+
+      const statusBadgeClass = winStatus.isOpen
+        ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+        : 'bg-rose-500/15 border-rose-500/40 text-rose-300';
 
       area.innerHTML = `
         <div class="space-y-5">
-          <div class="bg-fm-card border border-fm-border rounded-2xl p-5 flex flex-wrap items-center justify-between gap-3">
-            <div class="text-xs sm:text-sm">
-              <span class="text-slate-400">구단 자금:</span> <strong class="text-amber-400 font-mono">${team.budget.toFixed(1)}억</strong>
-              <span class="mx-2 text-slate-600">|</span>
-              <span class="text-slate-400">1·2군 연봉 총액:</span> <strong class="text-white font-mono">${payroll.toFixed(1)}억</strong>
+          <div class="bg-fm-card border border-fm-border rounded-2xl p-5 space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="text-xs sm:text-sm">
+                <span class="text-slate-400">구단 자금:</span> <strong class="text-amber-400 font-mono">${team.budget.toFixed(1)}억</strong>
+                <span class="mx-2 text-slate-600">|</span>
+                <span class="text-slate-400">1·2군 연봉 총액:</span> <strong class="text-white font-mono">${payroll.toFixed(1)}억</strong>
+              </div>
+              <button onclick="runSponsorEvent()" ${state.sponsorsLeftThisSeason <= 0 ? 'disabled' : ''}
+                class="px-4 py-2 rounded-xl text-xs font-bold transition ${state.sponsorsLeftThisSeason <= 0 ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}">
+                🤝 스폰서 프로모션 (시즌 잔여 ${state.sponsorsLeftThisSeason} / 3회)
+              </button>
             </div>
-            <button onclick="runSponsorEvent()" ${state.sponsorsLeftThisSeason <= 0 ? 'disabled' : ''}
-              class="px-4 py-2 rounded-xl text-xs font-bold transition ${state.sponsorsLeftThisSeason <= 0 ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}">
-              🤝 스폰서 프로모션 (시즌 잔여 ${state.sponsorsLeftThisSeason} / 3회)
-            </button>
+
+            <div class="p-3 rounded-xl border ${statusBadgeClass} flex flex-wrap items-center justify-between gap-2 text-xs font-bold">
+              <span>${winStatus.isOpen ? '🟢' : '🔒'} ${winStatus.label}</span>
+              <div class="flex flex-wrap items-center gap-2 font-mono">
+                <span class="px-2.5 py-0.5 rounded bg-slate-900/70">FA 영입 잔여: ${winStatus.faLeft} / 1회</span>
+                <span class="px-2.5 py-0.5 rounded bg-slate-900/70">코치 영입 잔여: ${winStatus.coachLeft} / 1회</span>
+              </div>
+            </div>
+            ${!winStatus.isOpen ? `
+              <p class="text-[11px] text-slate-400">
+                ※ 정규 시즌 진행 중에는 타 팀 선수 영입은 물론 FA 및 코치 영입/교체가 불가합니다. 체력·폼 저하 시 <strong>스쿼드 탭의 1군 ↔ 2군 로테이션</strong>을 활용하세요.
+              </p>
+            ` : ''}
           </div>
 
           <div class="bg-fm-card border border-fm-border rounded-2xl p-5">
-            <h3 class="text-sm font-extrabold text-white mb-3">👔 코치 영입 / 교체 (현재 코치: ${team.coachName})</h3>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <h3 class="text-sm font-extrabold text-white">👔 코치 영입 / 교체 (현재 코치: ${team.coachName})</h3>
+              <span class="text-xs font-bold ${canHireCoach ? 'text-emerald-400' : 'text-slate-400'}">
+                ${winStatus.isOpen
+                  ? (winStatus.coachLeft > 0 ? `${winStatus.phase === 'PRE' ? '개막 전' : '스토브리그'} 코치 영입 가능 (1/1)` : '이번 이적시장 코치 영입 완료 (0/1)')
+                  : '시즌 중 코치 영입 마감'}
+              </span>
+            </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               ${state.coachPool.map(c => `
                 <div class="p-3.5 rounded-xl bg-fm-bg border border-fm-border flex items-center justify-between gap-2">
@@ -1568,8 +1638,9 @@
                     <div class="font-bold text-white text-sm">${c.name}</div>
                     <div class="text-xs text-slate-400">${c.style}</div>
                   </div>
-                  <button onclick="hireCoach('${c.id}')" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-emerald-600 text-white text-xs font-bold shrink-0">
-                    선임 (${c.fee}억)
+                  <button onclick="hireCoach('${c.id}')" ${!canHireCoach ? 'disabled' : ''}
+                    class="px-3 py-2 rounded-xl text-xs font-bold shrink-0 transition ${!canHireCoach ? 'bg-slate-900 border border-slate-800 text-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-emerald-600 text-white'}">
+                    ${canHireCoach ? `선임 (${c.fee}억)` : (winStatus.isOpen ? '한도 소진' : '시즌 중 마감')}
                   </button>
                 </div>
               `).join('')}
@@ -1577,7 +1648,14 @@
           </div>
 
           <div class="bg-fm-card border border-fm-border rounded-2xl p-5">
-            <h3 class="text-sm font-extrabold text-white mb-3">🔄 FA 선수 영입 (동일 포지션 주전 교체, 방출 선수는 FA 전환)</h3>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <h3 class="text-sm font-extrabold text-white">🔄 FA 선수 영입 (동일 포지션 주전 교체)</h3>
+              <span class="text-xs font-bold ${canSignFA ? 'text-emerald-400' : 'text-slate-400'}">
+                ${winStatus.isOpen
+                  ? (winStatus.faLeft > 0 ? `${winStatus.phase === 'PRE' ? '개막 전' : '스토브리그'} FA 영입 가능 (1/1)` : '이번 이적시장 FA 영입 완료 (0/1)')
+                  : '시즌 중 FA 영입 마감'}
+              </span>
+            </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               ${state.freeAgents.map(fa => `
                 <div class="p-4 rounded-xl bg-fm-bg border border-fm-border flex items-center justify-between gap-3">
@@ -1592,8 +1670,9 @@
                       라인 ${fa.stats.laning} • 피지컬 ${fa.stats.mechanics} • 한타 ${fa.stats.teamfight} • 운영 ${fa.stats.macro}
                     </div>
                   </div>
-                  <button onclick="signFA('${fa.id}')" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shrink-0">
-                    영입 (${fa.fee}억)
+                  <button onclick="signFA('${fa.id}')" ${!canSignFA ? 'disabled' : ''}
+                    class="px-3.5 py-2 rounded-xl text-xs font-black shrink-0 transition ${!canSignFA ? 'bg-slate-900 border border-slate-800 text-slate-500 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}">
+                    ${canSignFA ? `영입 (${fa.fee}억)` : (winStatus.isOpen ? '한도 소진' : '시즌 중 마감')}
                   </button>
                 </div>
               `).join('')}
@@ -1620,6 +1699,16 @@
     }
 
     function hireCoach(id) {
+      const winStatus = getTransferWindowStatus();
+      if (!winStatus.isOpen) {
+        showToast('정규 시즌 진행 중에는 선수 및 코치 영입/교체가 불가합니다!', 'amber');
+        return;
+      }
+      if (winStatus.coachLeft <= 0) {
+        showToast('이번 이적시장 코치 영입 한도(1회)를 모두 사용했습니다!', 'amber');
+        return;
+      }
+
       const team = getUserTeam();
       const idx = state.coachPool.findIndex(c => c.id === id);
       if (idx < 0) return;
@@ -1628,6 +1717,10 @@
         showToast('자금이 부족합니다!', 'red');
         return;
       }
+
+      if (winStatus.phase === 'PRE') state.preSeasonCoachLeft = 0;
+      else if (winStatus.phase === 'POST') state.postSeasonCoachLeft = 0;
+
       team.budget = +(team.budget - c.fee).toFixed(1);
       const prevName = team.coachName;
       const prevBonus = team.coachBonus;
@@ -1636,12 +1729,22 @@
       state.coachPool[idx] = { id: 'prev_' + Date.now(), name: prevName, fee: 6.0, style: '전임 코치', bonus: prevBonus };
       saveToStorage(false);
       updateHUD();
-      pushNews(`👔 ${team.name}, '${c.name}' 코치 선임 완료!`);
+      pushNews(`👔 ${team.name}, '${c.name}' 코치 선임 완료! (${winStatus.phase === 'PRE' ? '개막 전' : '스토브리그'} 영입권 사용)`);
       renderTransfers(document.getElementById('tab-content'));
       showToast(`${c.name} 코치를 선임했습니다!`);
     }
 
     function signFA(id) {
+      const winStatus = getTransferWindowStatus();
+      if (!winStatus.isOpen) {
+        showToast('정규 시즌 진행 중에는 선수 및 코치 영입/교체가 불가합니다!', 'amber');
+        return;
+      }
+      if (winStatus.faLeft <= 0) {
+        showToast('이번 이적시장 FA 영입 한도(1회)를 모두 사용했습니다!', 'amber');
+        return;
+      }
+
       const team = getUserTeam();
       const idx = state.freeAgents.findIndex(p => p.id === id);
       if (idx < 0) return;
@@ -1650,6 +1753,10 @@
         showToast('이적료가 부족합니다!', 'red');
         return;
       }
+
+      if (winStatus.phase === 'PRE') state.preSeasonFaLeft = 0;
+      else if (winStatus.phase === 'POST') state.postSeasonFaLeft = 0;
+
       team.budget = +(team.budget - fa.fee).toFixed(1);
       const rIdx = team.roster.findIndex(p => p.role === fa.role);
       const outgoing = team.roster[rIdx];
@@ -1657,7 +1764,7 @@
       state.freeAgents[idx] = { ...outgoing, fee: +(outgoing.salary * 0.85).toFixed(1) };
       saveToStorage(false);
       updateHUD();
-      pushNews(`✍️ ${team.name}, FA '${fa.name}'(${fa.role}) 영입!`);
+      pushNews(`✍️ ${team.name}, FA '${fa.name}'(${fa.role}) 영입! (${winStatus.phase === 'PRE' ? '개막 전' : '스토브리그'} 영입권 사용)`);
       renderTransfers(document.getElementById('tab-content'));
       showToast(`${fa.name} 선수를 영입했습니다!`);
     }
@@ -2503,8 +2610,8 @@
       state.week += 1;
       state.trainedThisWeek = false;
       state.interviewsLeftThisWeek = 2;
-
-      if (state.week === 7 || state.week === 13) {
+      state.preSeasonFaLeft = 0;
+      state.preSeasonCoachLeft = 0;
         state.patchIdx = (state.patchIdx + 1) % PATCHES.length;
         applyPatchTiers(state.patchIdx);
         pushNews(`🚨 ${PATCHES[state.patchIdx].version} (${PATCHES[state.patchIdx].title}) 패치가 반영되었습니다!`);
@@ -2598,10 +2705,10 @@
       state.trainedThisWeek = false;
       state.interviewsLeftThisWeek = 2;
       state.sponsorsLeftThisSeason = 3;
-
-      const retiredList = [];
-
-      state.teams.forEach(t => {
+      state.preSeasonFaLeft = 1;
+      state.postSeasonFaLeft = 1;
+      state.preSeasonCoachLeft = 1;
+      state.postSeasonCoachLeft = 1;
         t.wins = 0; t.losses = 0; t.setWins = 0; t.setLosses = 0;
         t.budget = +(t.budget + 15.0).toFixed(1);
 
